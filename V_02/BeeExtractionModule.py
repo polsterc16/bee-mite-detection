@@ -129,7 +129,7 @@ class BeeExtractionHandler:
         self.prop_path_extracted = os.path.abspath(path_extracted)
         pass
     
-    # TODO: Update if necessaray
+    # DONE: Update if necessaray
     def set_reduced_img_dim(self, r_dim):
         # Check if we are dealing with a list here
         if type(r_dim) not in [list, tuple]:
@@ -187,6 +187,8 @@ class BeeExtractionHandler:
         self.prop_dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(ks,ks))
         self.prop_dilate_iterations = int( dilate_kernel_size/(ks-1) )
         pass
+    
+    
     
     
     # TODO: Update if necessaray
