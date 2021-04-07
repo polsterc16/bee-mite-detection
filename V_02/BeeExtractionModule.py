@@ -85,8 +85,7 @@ class BeeExtractionHandler:
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
         
-        self.set_path_img(path_img)
-        
+        self.set_ImageHandlerObject(IMObject)
         self.set_path_extracted(path_extracted)
         self.set_reduced_img_dim(reduced_img_dim)
         self.set_median_filter_size(median_filter_size)
@@ -103,46 +102,85 @@ class BeeExtractionHandler:
         self.restart()
         pass
     
+    # TODO: Update if necessaray
     def init_df(self,list_cols):
         assert type(list_cols) in [list, tuple]
         self.df = pd.DataFrame(columns=list_cols)
         pass
-    def set_path_img(self,path_img):
-        if not(path_img[-1] in ['/','\\']): 
-            path_img = path_img+"/"
-        self.prop_path_img = path_img
+    
+    # DONE: Update if necessaray
+    def set_ImageHandlerObject(self, newIHO):
+        # Make sure, you have a correct IHC Object type
+        assert type(newIHO) == IHM.ImageHandlerClass
+        
+        self.IHO = newIHO
+        self.IHO_qty = len(self.IHO.file_list)  # Qty of images might be important
         pass
+    
+    # DONE: Update if necessaray
     def set_path_extracted(self,path_extracted):
-        assert (type(path_extracted) == str)
-        if not(path_extracted[-1] in ['/','\\']): 
-            path_extracted = path_extracted+"/"
+        assert (type(path_extracted) == str)    # ensure that path is a string
+        
+        # Stop object creation, if no valid file path is given
+        if os.path.isdir(path_img) == False:
+            raise Exception("Requires a legal directory path!"); pass
+        
         self.prop_path_extracted = path_extracted
         pass
-    def set_reduced_img_dim(self, reduced_img_dim):
+    
+    # TODO: Update if necessaray
+    def set_reduced_img_dim(self, r_dim):
+        # Check if we are dealing with a list here
+        if type(r_dim) not in [list, tuple]:
+            raise Exception("Not a List or Tuple!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        if not all(isinstance(x, int) for x in r_dim):
+            raise Exception("List must contain only two positive INTEGERS!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        if not len(r_dim)==2:
+            raise Exception("List must contain only TWO positive integers!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        if not all(x>0 for x in r_dim):
+            raise Exception("List must contain only two POSITIVE integers!")
+        
         # image dimension must be an int tuple
-        temp = reduced_img_dim
-        assert type(temp) in [list,tuple]
-        assert len(temp) == 2
-        self.prop_reduced_img_dim = ( int(temp[0]), int(temp[1]) )
+        assert type(r_dim) in [list,tuple]
+        assert len(r_dim) == 2
+        self.prop_reduced_img_dim = ( int(r_dim[0]), int(r_dim[1]) )
         pass
+    
+    # TODO: Update if necessaray
     def set_median_filter_size(self, median_filter_size):
         self.prop_median_filter_size= int(median_filter_size)
         pass
+    
+    # TODO: Update if necessaray
     def set_mean_weight_alpha(self, mean_weight_alpha):
         self.prop_mean_weight_alpha = float(mean_weight_alpha)
         pass
+    
+    # TODO: Update if necessaray
     def set_gauss_reduce_kernel(self, gauss_reduce_kernel):
         # gauss kernel size msut be an odd integer
         temp = int(gauss_reduce_kernel)
         if (temp % 2) != 1: temp += 1
         self.prop_gauss_reduce_kernel = (temp, temp)
         pass
+    
+    # TODO: Update if necessaray
     def set_gauss_reduce_threshold(self, gauss_reduce_threshold):
         self.prop_gauss_reduce_threshold= int(gauss_reduce_threshold)
         pass
+    
+    # TODO: Update if necessaray
     def set_min_pixel_area(self, min_pixel_area):
         self.prop_min_pixel_area = int(min_pixel_area)
         pass
+    
+    # TODO: Update if necessaray
     def set_dilate_kernel_size(self, dilate_kernel_size):
         ks = 5
         self.prop_dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(ks,ks))
@@ -150,6 +188,7 @@ class BeeExtractionHandler:
         pass
     
     
+    # TODO: Update if necessaray
     def load_img(self, index):
         """img_set_resize"""
         # get image path to indexed element in img_name_list
@@ -168,11 +207,13 @@ class BeeExtractionHandler:
                       (0,0),(blk_width,self.img_set_resize.shape[0]),(0),cv2.FILLED)
         pass
     
+    # TODO: Update if necessaray
     def median(self, source):
         """img_set_median"""
         self.img_set_median = cv2.medianBlur(source, self.prop_median_filter_size)
         pass
     
+    # TODO: Update if necessaray
     def weighted_mean(self, source, overwrite=False):
         """img_set_mean"""
         if (overwrite):
@@ -184,12 +225,14 @@ class BeeExtractionHandler:
                                     self.prop_mean_weight_alpha)
         pass
     
+    # TODO: Update if necessaray
     def difference_from_mean(self, source):
         """img_set_diff"""
         # self.img_set_diff = np.int16(self.img_set_mean) - np.int16(self.img_set_resize)
         self.img_set_diff = np.int16(self.img_set_mean) - np.int16(source)
         pass
     
+    # TODO: Update if necessaray
     def threshold_diff(self, source):
         """img_set_threshold"""
         # cut off negative values
@@ -205,6 +248,7 @@ class BeeExtractionHandler:
             cv2.threshold(temp, self.img_blurr_thres, 255, cv2.THRESH_BINARY)
         pass
     
+    # TODO: Update if necessaray
     def gauss_blurr_reduce(self, source):
         """img_set_reduced"""
         temp = cv2.GaussianBlur(source, self.prop_gauss_reduce_kernel, 0 ) # blurr the images
@@ -217,6 +261,7 @@ class BeeExtractionHandler:
             cv2.morphologyEx( self.img_set_reduced, cv2.MORPH_OPEN, np.ones((5,5),np.uint8) )
         pass
     
+    # TODO: Update if necessaray
     def get_contours_reduced(self, source):
         img = source
         _,contours, _ = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -242,6 +287,7 @@ class BeeExtractionHandler:
             continue
         pass
     
+    # TODO: Update if necessaray
     def extract_from_contours(self, source_contours, source_img, orig_img):
         cs = source_contours
         
@@ -419,6 +465,7 @@ class BeeExtractionHandler:
     #     self.img_set_mask_RGB = np.uint8( cv2.cvtColor(img, cv2.COLOR_BGR2RGB) )
     #     pass
     
+    # TODO: Update if necessaray
     def restart(self, prepare_time=5):
         print()
         print("-- Restarting Handler")
@@ -450,6 +497,7 @@ class BeeExtractionHandler:
         
         pass
     
+    # TODO: Update if necessaray
     def prepare(self, times=10):
         times = int(times)
         
@@ -475,6 +523,7 @@ class BeeExtractionHandler:
         
         pass
     
+    # TODO: Update if necessaray
     def iterate(self, times = 1):
         # try:
         for i in range(times):
@@ -524,6 +573,7 @@ class BeeExtractionHandler:
         self.df.to_csv(path,sep=";")
         pass
     
+    # TODO: Update if necessaray
     def iter_and_plot(self, times = 1):
         self.iterate(times)        
         plt.close('all')
@@ -588,6 +638,7 @@ class BeeExtractionHandler:
         self.but_iter_20.color = 'cyan'
         pass
     
+    # TODO: Update if necessaray
     def txt_change(self,event):
         print("txt_change:",str(event))
         print("max:",str(self.img_name_list_length-self.img_index-1))
@@ -610,20 +661,24 @@ class BeeExtractionHandler:
         # print("done txt box")
         pass
     
+    # TODO: Update if necessaray
     def on_click_iter_x(self,event):
         print("on_click_iter_x:",str(self.but_iter_x_value))
         self.iter_and_plot_update(self.but_iter_x_value)
         pass
+    # TODO: Update if necessaray
     def on_click_iter_10(self,event):
         print("on_click_iter_10")
         self.iter_and_plot_update(10)
         pass
+    # TODO: Update if necessaray
     def on_click_iter_20(self,event):
         print("on_click_iter_20")
         self.iter_and_plot_update(20)
         pass
     
     
+    # TODO: Update if necessaray
     def iter_and_plot_update(self, times = 1):
         self.iterate(times)        
         # plt.close('all')
