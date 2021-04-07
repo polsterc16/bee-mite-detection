@@ -40,9 +40,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
+import os
 
 # Own Modules
-import ImageHandlerModule as IHM
+from ImageHandlerModule import ImageHandlerClass as IHC
 
 
 # %% CLASS DEFINES
@@ -79,8 +80,8 @@ class BeeExtractionHandler:
 
     """
     
-    def __init__(self, IMObject, path_extracted="extracted/", \
-                 reduced_img_dim=(400,300), \
+    def __init__(self, IMObject, path_extracted="./extracted/", \
+                 reduced_img_dim=(400,-300), \
                  median_filter_size=5, mean_weight_alpha=0.1, \
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
@@ -111,7 +112,7 @@ class BeeExtractionHandler:
     # DONE: Update if necessaray
     def set_ImageHandlerObject(self, newIHO):
         # Make sure, you have a correct IHC Object type
-        assert type(newIHO) == IHM.ImageHandlerClass
+        assert type(newIHO) == IHC
         
         self.IHO = newIHO
         self.IHO_qty = len(self.IHO.file_list)  # Qty of images might be important
@@ -122,10 +123,10 @@ class BeeExtractionHandler:
         assert (type(path_extracted) == str)    # ensure that path is a string
         
         # Stop object creation, if no valid file path is given
-        if os.path.isdir(path_img) == False:
+        if os.path.isdir(path_extracted) == False:
             raise Exception("Requires a legal directory path!"); pass
         
-        self.prop_path_extracted = path_extracted
+        self.prop_path_extracted = os.path.abspath(path_extracted)
         pass
     
     # TODO: Update if necessaray
@@ -735,13 +736,17 @@ if __name__== "__main__":
     plt.close('all')
     # %%
     
-    myHandler = img_handler(mean_weight_alpha=0.05)
-    print("Number of imgs available:",myHandler.img_name_list_length)
+    myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+    
+    myIHC = IHC(myPath,maxFiles=200)
+    
+    myBEH = BeeExtractionHandler(myIHC,mean_weight_alpha=0.05)
+
     # myHandler.restart(30)
     # %%
     # myHandler.iterate(times=8)
     # %%
-    myHandler.iter_and_plot(times=1)
+    myBEH.iter_and_plot(times=1)
     # %%
     # myHandler.iter_and_plot_update(times=1)
     # %%
