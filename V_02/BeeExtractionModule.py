@@ -2,6 +2,15 @@
 """
 Created on Wed Apr  7 14:55:24 2021
 
+@author: Admin
+
+PURPOSE: Find appropriate filters that allow for finding regions containing Bees. And Extract them.
+
+VERSION: 001
+
+
+# Based on V_01/test_12.py
+
 (MEAN on resize)
 RESIZE
 DIFF
@@ -24,15 +33,19 @@ gaus - thres - dilate
 
 """
 
+#%% IMPORTS
+
 import cv2
-# print("cv2.version = {}".format(cv2.__version__))
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
 
+# Own Modules
+import ImageHandlerModule as IHM
 
-# %%
+
+# %% CLASS DEFINES
 
 class BeeExtractionHandler:
     """
@@ -65,6 +78,7 @@ class BeeExtractionHandler:
     None.
 
     """
+    
     def __init__(self, IMObject, path_extracted="extracted/", \
                  reduced_img_dim=(400,300), \
                  median_filter_size=5, mean_weight_alpha=0.1, \
