@@ -34,7 +34,7 @@ class ImageHandlerClass:
         # Ensure correct parameter type
         assert type(maxFiles) == int;
         
-        self.dir_path = None
+        self.dir_path = None    # Reduntant initialization
         self.ext_list = None
         self.file_list = []
         
@@ -124,7 +124,7 @@ def _main_():
     # main function test code area.
     myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
     
-    myIHC = ImageHandlerClass(myPath,maxFiles=20,DebugPrint=True)
+    myIHC = ImageHandlerClass(myPath,maxFiles=-20,DebugPrint=True)
     # myIHC = ImageHandlerClass(myPath,"png",maxFiles=20,DebugPrint=True)
     
     print(myIHC.file_list)
