@@ -5,6 +5,8 @@ Created on Wed Apr  7 13:10:41 2021
 @author: Admin
 
 PURPOSE: Make an Object, that handles getting all the images
+
+VERSION: 001
 """
 
 import os, glob
