@@ -25,28 +25,54 @@ gaus - thres - dilate
 """
 
 import cv2
-print("cv2.version = {}".format(cv2.__version__))
+# print("cv2.version = {}".format(cv2.__version__))
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
 
-import GetImageList as GIL
-
-# img_path = "../images/"
-img_path = "C:/Users/Admin/0_FH_Joanneum/ECM_S3/PROJECT/bee_images/01_8_2020/5"
-print("img_path =",img_path)
-
 
 # %%
 
-class img_handler:
-    def __init__(self, path_img=img_path, path_extracted="extracted/", \
+class BeeExtractionHandler:
+    """
+    Handles the extraction of images from a list of images (as defined in ImageHandlerObject).
+    Will place extracted images in specified directory.
+
+    Parameters
+    ----------
+    IMObject : ImageHandlerClass
+        Must be an ImageHandlerClass object. Contains a list of images to be used for extraction.
+    path_extracted : String (path), optional
+        Path to directory for extracted images. The default is "extracted/".
+    reduced_img_dim : Tuple(int,int), optional
+        Dimeion of images when performing filters and stuff. The default is (400,300).
+    median_filter_size : Integer, optional
+        Filter size for initial median filter. The default is 5.
+    mean_weight_alpha : Float (0...1), optional
+        The weight with which a new image is added to the 'average' of the backgorund image. The default is 0.1.
+    gauss_reduce_kernel : Integer, optional
+        Kernel Size for the (TODO)filter . The default is 41.
+    gauss_reduce_threshold : Uint8, optional
+        Threshold value for threshold filter. The default is 160.
+    min_pixel_area : Number, optional
+        The minimum pixel area (mind reduced_img_dim) which is required to plausibly contain a bee. The default is 1000.
+    dilate_kernel_size : Integer, optional
+        Size of the Kernel when opning the Image (to get rid of small dots). The default is 32.
+
+    Returns
+    -------
+    None.
+
+    """
+    def __init__(self, IMObject, path_extracted="extracted/", \
                  reduced_img_dim=(400,300), \
                  median_filter_size=5, mean_weight_alpha=0.1, \
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
+        
         self.set_path_img(path_img)
+        
         self.set_path_extracted(path_extracted)
         self.set_reduced_img_dim(reduced_img_dim)
         self.set_median_filter_size(median_filter_size)
@@ -628,8 +654,14 @@ class img_handler:
 
 # %%
 if __name__== "__main__":
-    print("Calling main function.)\n")
-    # main()
+    print("## Calling main function.)\n")
+    
+    print("cv2.version = {}".format(cv2.__version__))
+    print("numpy.version = {}".format(np.__version__))
+    print("matplotlib.version = {}".format(mpl.__version__))
+    print("pandas.version = {}".format(pd.__version__))
+    
+    # Window Cleanup
     cv2.destroyAllWindows()
     plt.close('all')
     # %%
