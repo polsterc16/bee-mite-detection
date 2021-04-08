@@ -10,10 +10,11 @@ VERSION: 001
 """
 
 import os, glob
+import numpy as np
 
 
 #%%
-class ImageHandlerClass:
+class ImageFinderClass:
     """
     Creates an object which contains a list of all files of specified extension in the specified directory.
 
@@ -110,8 +111,102 @@ class ImageHandlerClass:
         if DebugPrint: print("# Number of files in list: "+str(len(dest_list)))
         pass
 
+#%%
 
+class ImageLoaderClass:
+    """
+    Creates an 'ImageLoaderClass' object.
+    Can be used to automatically load, grayscale and resize images as defines by an 'ImageFinderClass' object.
 
+    Parameters
+    ----------
+    base_IFC : ImageFinderClass Object
+        The 'ImageFinderClass' Object defines which images can be loaded.
+    grayscale : BOOL, optional
+        Defines if the loaded image will be converted to grayscale. The default is True.
+    new_dim : TUPLE(INT,INT), optional
+        This tuple defines to which dimensions the image shall be resized. The default is None.
+    mask_rel : TUPLE(FLOAT,FLOAT,FLOAT,FLOAT), optional
+        Defines a rectangular mask in relative coordinates (x1, x2, y1, y2). All pixels outside the defined rectangle will be set to 0. The default is (0.0, 0.0, 1.0, 1.0).
+
+    Returns
+    -------
+    None.
+    """
+        
+    def __init__(self, base_IFC, grayscale=True, new_dim=None, mask_rel=(0.0,0.0,1.0,1.0)):
+        self._set_base_IFC(base_IFC)
+        self._set_dim(new_dim)
+        self._set_mask_rel(mask_rel)
+        
+        pass
+    
+    # Constructor Functions ---------------------------------------------------
+    
+    def _set_base_IFC(self, new_IFC):
+        # Ensure correct parameter type
+        assert type(new_IFC) == ImageFinderClass;
+        self.IFC = new_IFC
+        pass
+    
+    def _set_dim(self, dim):
+        if dim == None:
+            # If none given, then we save 'None' and no scaling will be applied later
+            self._scale_dim = dim
+        else:
+            # Check if we are dealing with a list here
+            if type(dim) not in [list, tuple]:
+                raise Exception("Not a List or Tuple!")
+            
+            # Check if list is only ints
+            if not all(isinstance(x, int) for x in dim):
+                raise Exception("List must contain only two positive INTEGERS!")
+            
+            # Check if length of 2 elements
+            if not len(dim)==2:
+                raise Exception("List must contain only TWO positive integers!")
+            
+            # Check if positive values
+            if not all(x>0 for x in dim):
+                raise Exception("List must contain only two POSITIVE (> 0) integers!")
+            
+            self._scale_dim = tuple(dim)
+        pass
+    
+    def _set_mask_rel(self,m):
+        import numbers
+        
+        # Check if we are dealing with a list here
+        if type(m) not in [list, tuple]:
+            raise Exception("Not a List or Tuple!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        if not all(isinstance(x, numbers.Number) for x in m):
+            raise Exception("List must contain four positive NUMBERS [0,1]!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        if not len(m)==4:
+            raise Exception("List must contain FOUR positive numbers [0,1]!")
+        
+        # Check if our dim is a list of two ints (which is desired)
+        # REMEMBER: mask = (x1,y1, x2,y2)
+        if not all([0 <= m[0], m[0] < m[2], m[2] <= 1, 0 <= m[1], m[1] < m[3], m[3] <= 1]):
+            raise Exception("List must contain four positive numbers in the RANGE [0,1]!")
+        
+        self._mask_rel = [np.float32(x) for x in m]
+        pass
+    
+    
+    # Work Functions ----------------------------------------------------------
+    
+    def _load_img(self, index):
+        
+        pass
+    
+    
+    def get_img(self, index=0):
+        
+        pass
 
 
 
@@ -120,16 +215,26 @@ class ImageHandlerClass:
 
 
 #%%
-def _main_():
-    # main function test code area.
-    myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
-    
-    myIHC = ImageHandlerClass(myPath,maxFiles=-20,DebugPrint=True)
-    # myIHC = ImageHandlerClass(myPath,"png",maxFiles=20,DebugPrint=True)
-    
-    print(myIHC.file_list)
-    pass
-
 
 if __name__ == "__main__":
-    _main_()
+    # main function test code area.
+    TEST = 2
+    
+    
+    if(TEST==1):
+        myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+        
+        myIFC = ImageFinderClass(myPath,maxFiles=20,DebugPrint=True)
+        # myIHC = ImageFinderClass(myPath,"png",maxFiles=20,DebugPrint=True)
+        
+        print(myIFC.file_list)
+    
+    
+    if(TEST==2):
+        myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+        myIFC = ImageFinderClass(myPath,maxFiles=100)
+        
+        myILC = ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.3,0.1,0.95,0.8))
+        
+        
+        
