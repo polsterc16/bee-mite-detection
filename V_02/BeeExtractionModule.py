@@ -6,7 +6,7 @@ Created on Wed Apr  7 14:55:24 2021
 
 PURPOSE: Find appropriate filters that allow for finding regions containing Bees. And Extract them.
 
-VERSION: 001
+VERSION: 002
 
 
 # Based on V_01/test_12.py
@@ -110,6 +110,9 @@ class BeeExtractionHandler:
         self.df = pd.DataFrame(columns=list_cols)
         pass
     
+    
+    # SETTINGS for image import and export ------------------------------------
+    
     # DONE
     def set_ImageLoaderObject(self, new_ILO):
         # Make sure, you have a correct IHC Object type
@@ -129,6 +132,42 @@ class BeeExtractionHandler:
         self.prop_path_extracted = os.path.abspath(path_extracted)
         pass
     
+    
+    # PERFORMING of Background update and Loading of image --------------------
+    
+    # TODO: Update if necessaray
+    def add_to_background_img(self, img_new, overwrite=False):
+        """
+        Either overwrites the "background" image with "img_new" (overwrite=True).
+        Or adds the "img_new" (weighted addition) to the "background" image.
+
+        Parameters
+        ----------
+        img_new : cv2-grayscale image
+            Image to be added to "background".
+        overwrite : BOOL, optional
+            Determines wether the current "background" image is overwritten instead of a weighted addition. The default is False.
+
+        Returns
+        -------
+        None.
+        """
+        if (overwrite):
+            # overwrite "background" image with "img_new" 
+            self.img["bg"] = np.float32( img_new )
+        else:
+            # weighted accumulation
+            cv2.accumulateWeighted( img_new, self.img["bg"], self.prop_mean_weight_alpha)
+        pass
+    
+    # DONE
+    def load_img(self, index):
+        # Loads image(index) to local image variable
+        self.img["im"] = self.ILO.get_img(index).copy()
+        pass
+    
+    
+    # SETTINGs for Image extraction -------------------------------------------
     
     # TODO: Update if necessaray
     def set_median_filter_size(self, median_filter_size):
@@ -166,45 +205,12 @@ class BeeExtractionHandler:
         pass
     
     
-    
-    
-    # DONE
-    def load_img(self, index):
-        # Loads image(index) to local image variable
-        self.img["im"] = self.ILO.get_img(index).copy()
-        pass
-    
-    
+    # PERFORMING of Image extraction ------------------------------------------
     
     # TODO: Update if necessaray
     def median(self, source):
         """img_set_median"""
         self.img_set_median = cv2.medianBlur(source, self.prop_median_filter_size)
-        pass
-    
-    # TODO: Update if necessaray
-    def add_to_background_img(self, img_new, overwrite=False):
-        """
-        Either overwrites the "background" image with "img_new" (overwrite=True).
-        Or adds the "img_new" (weighted addition) to the "background" image.
-
-        Parameters
-        ----------
-        img_new : cv2-grayscale image
-            Image to be added to "background".
-        overwrite : BOOL, optional
-            Determines wether the current "background" image is overwritten instead of a weighted addition. The default is False.
-
-        Returns
-        -------
-        None.
-        """
-        if (overwrite):
-            # overwrite "background" image with "img_new" 
-            self.img["bg"] = np.float32( img_new )
-        else:
-            # weighted accumulation
-            cv2.accumulateWeighted( img_new, self.img["bg"], self.prop_mean_weight_alpha)
         pass
     
     # TODO: Update if necessaray
@@ -447,6 +453,9 @@ class BeeExtractionHandler:
     #     self.img_set_mask_RGB = np.uint8( cv2.cvtColor(img, cv2.COLOR_BGR2RGB) )
     #     pass
     
+    
+    # EXECUTION of Image Extraction -------------------------------------------
+    
     # TODO: Update if necessaray
     def restart(self, prepare_time=5):
         print()
@@ -554,6 +563,9 @@ class BeeExtractionHandler:
         path = self.prop_path_extracted + "Extracted.csv"
         self.df.to_csv(path,sep=";")
         pass
+    
+    
+    # ADDITION of Plotting ----------------------------------------------------
     
     # TODO: Update if necessaray
     def iter_and_plot(self, times = 1):
