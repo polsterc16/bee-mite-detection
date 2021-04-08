@@ -6,7 +6,7 @@ Created on Wed Apr  7 13:10:41 2021
 
 PURPOSE: Make an Object, that handles getting all the images
 
-VERSION: 001
+VERSION: 002
 """
 
 import os, glob
