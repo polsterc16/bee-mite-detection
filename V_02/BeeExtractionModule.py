@@ -43,7 +43,7 @@ import pandas as pd
 import os
 
 # Own Modules
-from ImageHandlerModule import ImageHandlerClass as IHC
+import ImageHandlerModule as IHM
 
 
 # %% CLASS DEFINES
@@ -55,14 +55,10 @@ class BeeExtractionHandler:
 
     Parameters
     ----------
-    IMObject : ImageHandlerClass
-        Must be an ImageHandlerClass object. Contains a list of images to be used for extraction.
+    IFObject : ImageFinderClass
+        Must be an ImageFinderClass object. Contains a list of images to be used for extraction.
     path_extracted : String (path), optional
         Path to directory for extracted images. The default is "extracted/".
-    reduced_img_dim : Tuple(width, height), optional
-        Dimeion of images when performing filters and stuff. The default is (400,300).
-    rectMask : (4x1) INTEGER, optional
-        defines mask (x1,y1,x2,y2). The default is (0,0,1,1).
     median_filter_size : Integer, optional
         Filter size for initial median filter. The default is 5.
     mean_weight_alpha : Float (0...1), optional
@@ -82,18 +78,17 @@ class BeeExtractionHandler:
 
     """
     
-    def __init__(self, IMObject, path_extracted="./extracted/", \
-                 reduced_img_dim=(400,300), rectMask=(0,0,1,1), \
+    def __init__(self, ILObject, path_extracted="./extracted/", \
+                 # reduced_img_dim=(400,300), rectMask=(0,0,1,1), \
                  median_filter_size=5, mean_weight_alpha=0.1, \
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
-        self.img_set = dict()
+        self.img = dict()
+        self.img["bg"]=None
+        self.img["im"]=None
         
-        self.set_ImageHandlerObject(IMObject)
+        self.set_ImageLoaderObject(ILObject)
         self.set_path_extracted(path_extracted)
-        self.set_reduced_img_dim(reduced_img_dim)
-        self.set_rect_mask_rel(rectMask)
-        self.generate_rect_mask()
         
         self.set_median_filter_size(median_filter_size)
         self.set_mean_weight_alpha(mean_weight_alpha)
@@ -115,18 +110,15 @@ class BeeExtractionHandler:
         self.df = pd.DataFrame(columns=list_cols)
         pass
     
-    # DONE: Update if necessaray
-    def set_ImageHandlerObject(self, newIHO):
+    # DONE
+    def set_ImageLoaderObject(self, new_ILO):
         # Make sure, you have a correct IHC Object type
-        assert type(newIHO) == IHC
+        assert type(new_ILO) == IHM.ImageLoaderClass
         
-        self.IHO_REF = newIHO
-        self.IHO_path = self.IHO_REF.dir_path
-        self.IHO_list = self.IHO_REF.file_list
-        self.IHO_qty = len(self.IHO_list)  # Qty of images might be important
+        self.ILO = new_ILO
         pass
     
-    # DONE: Update if necessaray
+    # DONE: could be better
     def set_path_extracted(self,path_extracted):
         assert (type(path_extracted) == str)    # ensure that path is a string
         
@@ -137,79 +129,6 @@ class BeeExtractionHandler:
         self.prop_path_extracted = os.path.abspath(path_extracted)
         pass
     
-    # DONE: Update if necessaray
-    def set_reduced_img_dim(self, r_dim):
-        # Check if we are dealing with a list here
-        if type(r_dim) not in [list, tuple]:
-            raise Exception("Not a List or Tuple!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        if not all(isinstance(x, int) for x in r_dim):
-            raise Exception("List must contain only two positive INTEGERS!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        if not len(r_dim)==2:
-            raise Exception("List must contain only TWO positive integers!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        if not all(x>0 for x in r_dim):
-            raise Exception("List must contain only two POSITIVE (>0) integers!")
-        
-        # image dimension must be an int tuple
-        assert type(r_dim) in [list,tuple]
-        assert len(r_dim) == 2
-        self.prop_reduced_img_dim = ( int(r_dim[0]), int(r_dim[1]) )
-        pass
-    
-    def set_rect_mask_rel(self,mask):
-        """
-        Will verify if input is of correct type and shape. (x1,x2,y1,y2)
-        """
-        import numbers
-        
-        # Check if we are dealing with a list here
-        if type(mask) not in [list, tuple]:
-            raise Exception("Not a List or Tuple!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        if not all(isinstance(x, numbers.Number) for x in mask):
-            raise Exception("List must contain four positive NUMBERS [0,1]!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        if not len(mask)==4:
-            raise Exception("List must contain FOUR positive numbers [0,1]!")
-        
-        # Check if our dim is a list of two ints (which is desired)
-        # REMEMBER: mask = (x1,y1, x2,y2)
-        if not all([0 <= mask[0], mask[0] < mask[2], mask[2] <= 1,\
-               0 <= mask[1], mask[1] < mask[3], mask[3] <= 1]):
-            raise Exception("List must contain four positive numbers in the RANGE [0,1]!")
-        
-        self.rect_mask_relative = [np.float32(x) for x in mask]
-        
-        pass
-    
-    def generate_rect_mask(self):
-        """
-        Will generate a mask based on reduced image size and relative mask position
-        """
-        mr = self.rect_mask_relative        # get mask (relative)
-        sx,sy = self.prop_reduced_img_dim   # get reduced dimensions
-        
-        # mask for image of reduced size
-        ma = np.around([mr[0]*sx, mr[1]*sx, mr[2]*sy, mr[3]*sy])
-        pt1 = ( int(ma[0]), int(ma[1]) )
-        pt2 = ( int(ma[2]), int(ma[3]) )
-        
-        # create emtpy (black) grayscale image
-        img_mask = np.zeros((sy,sx),dtype=np.uint8) 
-        # Draw mask as white (255) rectangle
-        img_mask = cv2.rectangle(img_mask, pt1, pt2, 255, lineType=cv2.FILLED)
-        
-        # cv2.imshow("img_mask", img_mask)
-        
-        self.img_set["mask reduced"] = img_mask
-        pass
     
     # TODO: Update if necessaray
     def set_median_filter_size(self, median_filter_size):
@@ -249,23 +168,10 @@ class BeeExtractionHandler:
     
     
     
-    # TODO: Update if necessaray
+    # DONE
     def load_img(self, index):
-        """img_set_resize"""
-        # get path to currently indexed image (use os.path.join!)
-        imgpath_current = os.path.join(self.IHO_path, self.IHO_list[index])
-        
-        # Load original image
-        self.img_set["0 original"] = cv2.imread(imgpath_current, cv2.IMREAD_COLOR)
-        # Get grayscale version
-        img_gray = cv2.cvtColor(self.img_set["0 original"], cv2.COLOR_BGR2GRAY)
-        # Scale down to new dimensions
-        self.img_set["1 gray resize"] = cv2.resize(img_gray, \
-                                     self.prop_reduced_img_dim, \
-                                     interpolation = cv2.INTER_AREA )
-        
-        self.img_set["2 gray masked"] = \
-            cv2.bitwise_and( self.img_set["1 gray resize"], self.img_set["mask reduced"] )
+        # Loads image(index) to local image variable
+        self.img["im"] = self.ILO.get_img(index).copy()
         pass
     
     
@@ -295,11 +201,10 @@ class BeeExtractionHandler:
         """
         if (overwrite):
             # overwrite "background" image with "img_new" 
-            self.img_set["background"] = np.float32( img_new )
+            self.img["bg"] = np.float32( img_new )
         else:
             # weighted accumulation
-            cv2.accumulateWeighted( img_new, self.img_set["background"], \
-                                    self.prop_mean_weight_alpha)
+            cv2.accumulateWeighted( img_new, self.img["bg"], self.prop_mean_weight_alpha)
         pass
     
     # TODO: Update if necessaray
