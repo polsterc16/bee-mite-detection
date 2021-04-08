@@ -11,6 +11,7 @@ VERSION: 001
 
 import os, glob
 import numpy as np
+import cv2
 
 
 #%%
@@ -37,11 +38,12 @@ class ImageFinderClass:
         
         self.dir_path = None    # Reduntant initialization
         self.ext_list = None
-        self.file_list = []
+        self.file_list = None
+        self.size = None
         
         self.set_dir_path(filePathString, DebugPrint)
         self.set_ext_list(acceptedExtensionList, DebugPrint)
-        self.find_extension_files(self.file_list, maxFiles, DebugPrint)
+        self.find_extension_files(maxFiles, DebugPrint)
         
         if DebugPrint: print("### Init complete.")
         pass
@@ -86,8 +88,10 @@ class ImageFinderClass:
         pass
     
     
-    def find_extension_files(self, dest_list, maxFiles, DebugPrint=False):
+    def find_extension_files(self, maxFiles, DebugPrint=False):
         if DebugPrint: print("## Function Call: find_extension_files")
+        
+        self.file_list = []
         
         # Iterate through all extensions
         for extn in self.ext_list:
@@ -97,18 +101,20 @@ class ImageFinderClass:
             if DebugPrint: print("# Current mask extension: "+str("*." + extn))
             
             for maskedFile in glob.glob(pathmask):
-                dest_list.append( os.path.basename(maskedFile) )
+                self.file_list.append( os.path.basename(maskedFile) )
                 # Stop, if we have the desired number of files
-                if (maxFiles>0 and len(dest_list)>=maxFiles): break
+                if (maxFiles>0 and len(self.file_list)>=maxFiles): break
             
             # Stop, if we have the desired number of files
-            if (maxFiles>0 and len(dest_list)>=maxFiles): break
+            if (maxFiles>0 and len(self.file_list)>=maxFiles): break
         
         # Check, if we have more than 0 files
-        if len(dest_list) == 0:
+        if len(self.file_list) == 0:
             raise Exception("No files for specified extensions found!")
         
-        if DebugPrint: print("# Number of files in list: "+str(len(dest_list)))
+        self.size = len(self.file_list)
+        
+        if DebugPrint: print("# Number of files in list: "+str(self.size))
         pass
 
 #%%
@@ -122,7 +128,7 @@ class ImageLoaderClass:
     ----------
     base_IFC : ImageFinderClass Object
         The 'ImageFinderClass' Object defines which images can be loaded.
-    grayscale : BOOL, optional
+    grayscale_en : BOOL, optional
         Defines if the loaded image will be converted to grayscale. The default is True.
     new_dim : TUPLE(INT,INT), optional
         This tuple defines to which dimensions the image shall be resized. The default is None.
@@ -134,11 +140,13 @@ class ImageLoaderClass:
     None.
     """
         
-    def __init__(self, base_IFC, grayscale=True, new_dim=None, mask_rel=(0.0,0.0,1.0,1.0)):
+    def __init__(self, base_IFC, new_dim=(400,300), mask_rel=(0.0,0.0,1.0,1.0), grayscale_en=True):
+        self._img = None
+        
         self._set_base_IFC(base_IFC)
+        self._set_grayscale(grayscale_en)
         self._set_dim(new_dim)
         self._set_mask_rel(mask_rel)
-        
         pass
     
     # Constructor Functions ---------------------------------------------------
@@ -146,31 +154,37 @@ class ImageLoaderClass:
     def _set_base_IFC(self, new_IFC):
         # Ensure correct parameter type
         assert type(new_IFC) == ImageFinderClass;
-        self.IFC = new_IFC
+        self._IFC = new_IFC
+        self._IFC_path = self._IFC.dir_path
+        self._IFC_list = self._IFC.file_list
+        self._size = self._IFC.size
+        pass
+    
+    def _set_grayscale(self, grayscale_en):
+        # Ensure correct parameter type
+        if not type(grayscale_en) == bool:
+            raise Exception("grayscale_en must be a bool!")
+        self._grayscale = grayscale_en
         pass
     
     def _set_dim(self, dim):
-        if dim == None:
-            # If none given, then we save 'None' and no scaling will be applied later
-            self._scale_dim = dim
-        else:
-            # Check if we are dealing with a list here
-            if type(dim) not in [list, tuple]:
-                raise Exception("Not a List or Tuple!")
-            
-            # Check if list is only ints
-            if not all(isinstance(x, int) for x in dim):
-                raise Exception("List must contain only two positive INTEGERS!")
-            
-            # Check if length of 2 elements
-            if not len(dim)==2:
-                raise Exception("List must contain only TWO positive integers!")
-            
-            # Check if positive values
-            if not all(x>0 for x in dim):
-                raise Exception("List must contain only two POSITIVE (> 0) integers!")
-            
-            self._scale_dim = tuple(dim)
+        # Check if we are dealing with a list here
+        if type(dim) not in [list, tuple]:
+            raise Exception("Not a List or Tuple!")
+        
+        # Check if list is only ints
+        if not all(isinstance(x, int) for x in dim):
+            raise Exception("List must contain only two positive INTEGERS!")
+        
+        # Check if length of 2 elements
+        if not len(dim)==2:
+            raise Exception("List must contain only TWO positive integers!")
+        
+        # Check if positive values
+        if not all(x>0 for x in dim):
+            raise Exception("List must contain only two POSITIVE (> 0) integers!")
+        
+        self._scale_dim = tuple(dim)
         pass
     
     def _set_mask_rel(self,m):
@@ -194,18 +208,71 @@ class ImageLoaderClass:
             raise Exception("List must contain four positive numbers in the RANGE [0,1]!")
         
         self._mask_rel = [np.float32(x) for x in m]
+        
+        self._gen_mask_abs()
+        pass
+    
+    def _gen_mask_abs(self):
+        mr = self._mask_rel         # get mask (relative)
+        sx,sy = self._scale_dim     # get reduced dimensions
+        
+        # mask for image of reduced size (x1,y1, x2,y2)
+        ma = np.around([mr[0]*sx, mr[1]*sy, mr[2]*sx, mr[3]*sy])
+        pt1 = ( int(ma[0]), int(ma[1]) )
+        pt2 = ( int(ma[2]), int(ma[3]) )
+        
+        # create emtpy (black) grayscale image
+        img_mask = np.zeros((sy,sx),dtype=np.uint8) 
+        # Draw mask as white (255) rectangle
+        img_mask = cv2.rectangle(img_mask, pt1, pt2, 255, cv2.FILLED)
+        
+        if not self._grayscale:
+            img_mask = cv2.cvtColor(img_mask, cv2.COLOR_GRAY2BGR)
+        
+        # cv2.imshow("img_mask", img_mask)
+        
+        self._mask_img = img_mask
         pass
     
     
     # Work Functions ----------------------------------------------------------
     
+    
     def _load_img(self, index):
+        # Check if index is possible
+        if index not in range(self._size):
+            raise Exception("Index ({}) out of bounds (length={})".format(index,self._size))
         
+        
+        # get path to currently indexed image (use os.path.join!)
+        f_path = os.path.join(self._IFC_path, self._IFC_list[index])
+        
+        
+        # Load original image
+        img_0 = cv2.imread(f_path, cv2.IMREAD_COLOR)
+        
+        
+        if (self._grayscale):
+            # Get grayscale version
+            img_1 = cv2.cvtColor(img_0, cv2.COLOR_BGR2GRAY)
+        else:
+            img_1 = img_0
+        
+        
+        # Scale to new dimensions
+        img_2 = cv2.resize(img_1, self._scale_dim, interpolation = cv2.INTER_AREA )
+        
+        
+        # Apply Mask
+        img_3 = cv2.bitwise_and( img_2, self._mask_img )
+        
+        self._img = img_3
         pass
     
     
-    def get_img(self, index=0):
-        
+    def get_img(self, index):
+        self._load_img(index)
+        return self._img
         pass
 
 
@@ -234,7 +301,10 @@ if __name__ == "__main__":
         myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
         myIFC = ImageFinderClass(myPath,maxFiles=100)
         
-        myILC = ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.3,0.1,0.95,0.8))
+        myILC = ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.0,0.0,.85,.95),grayscale_en=False)
+        
+        im = myILC.get_img(1)
+        cv2.imshow("im",im)
         
         
         
