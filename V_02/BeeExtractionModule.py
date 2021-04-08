@@ -85,7 +85,7 @@ class BeeExtractionHandler:
                  min_pixel_area=1000, dilate_kernel_size=32):
         self.img = dict()
         self.img["bg"]=None
-        self.img["im"]=None
+        self.img["0 src"]=None
         
         self.set_ImageLoaderObject(ILObject)
         self.set_path_extracted(path_extracted)
@@ -127,7 +127,7 @@ class BeeExtractionHandler:
         
         # Stop object creation, if no valid file path is given
         if os.path.isdir(path_extracted) == False:
-            raise Exception("Requires a legal directory path!"); pass
+            raise Exception("Requires a legal directory path!")
         
         self.prop_path_extracted = os.path.abspath(path_extracted)
         pass
@@ -157,13 +157,14 @@ class BeeExtractionHandler:
             self.img["bg"] = np.float32( img_new )
         else:
             # weighted accumulation
+            assert img_new.shape == self.img["bg"].shape    # ensure that we can add them
             cv2.accumulateWeighted( img_new, self.img["bg"], self.prop_mean_weight_alpha)
         pass
     
     # DONE
     def load_img(self, index):
         # Loads image(index) to local image variable
-        self.img["im"] = self.ILO.get_img(index).copy()
+        self.img["0 src"] = self.ILO.get_img(index).copy()
         pass
     
     
@@ -181,7 +182,7 @@ class BeeExtractionHandler:
     
     # TODO: Update if necessaray
     def set_gauss_reduce_kernel(self, gauss_reduce_kernel):
-        # gauss kernel size msut be an odd integer
+        # gauss kernel size must be an odd integer
         temp = int(gauss_reduce_kernel)
         if (temp % 2) != 1: temp += 1
         self.prop_gauss_reduce_kernel = (temp, temp)
@@ -411,108 +412,42 @@ class BeeExtractionHandler:
         
         pass
     
-    # def draw_contours_reduced(self, target):
-    #     img = target
-    #     fontFace = cv2.FONT_HERSHEY_PLAIN
-    #     color=(255,255,255)
-    #     dim,_=cv2.getTextSize("A", fontFace, 2, 2)
-    #     y0=dim[1]
-    #     y = y0
-    #     for i in range( len(self.cont_reduced) ):
-    #         c=self.cont_reduced[i]
-    #         area = int( cv2.contourArea(c) )
-    #         text = str(i)+" "+str(area)
-    #         dim,_ = cv2.getTextSize(str(i), fontFace, 1.5, 2)
-            
-            
-    #         M = cv2.moments(c)
-    #         cx = (M['m10']/M['m00'])
-    #         cy = (M['m01']/M['m00'])
-            
-    #         org=( int(cx-(dim[0]/2)), int(cy+(dim[1]/2)) )
-    #         cv2.putText(img, str(i), org, fontFace, 1.5, color,2)
-            
-    #         cv2.putText(img, text, (0,y), fontFace, 1.5, color,2)
-    #         y +=y0 # increment to next line
-    #     pass
-    
-    # def dilation(self, source):
-    #     self.img_set_dilation = cv2.dilate(source, self.prop_dilate_kernel, \
-    #                               iterations=self.prop_dilate_iterations)
-    #     pass
-    
-    # def overlay(self,source):
-    #     """img_set_mask_RGB"""
-    #     mask_g = self.img_set_dilation - self.img_set_reduced
-    #     mask_r = self.img_set_reduced
-    #     img = np.float32( cv2.cvtColor(source, cv2.COLOR_GRAY2BGR) )
-    #     maskImg = np.zeros(img.shape, np.uint8)
-    #     maskImg[:,:,1] = mask_g
-    #     maskImg[:,:,2] = mask_r
-    #     cv2.accumulateWeighted(maskImg, img, 0.2)
-    #     self.img_set_mask_RGB = np.uint8( cv2.cvtColor(img, cv2.COLOR_BGR2RGB) )
-    #     pass
-    
     
     # EXECUTION of Image Extraction -------------------------------------------
     
-    # TODO: Update if necessaray
+    # Done
     def restart(self, prepare_time=5):
+        """
+        Resets index. Sets first image as the Background image. Loads the next x images to generate a more 'realistic' background image. Resets Index.
+
+        Parameters
+        ----------
+        prepare_time : INTEGER, optional
+            How many images to load for generating the initial background image. The default is 5.
+
+        Returns
+        -------
+        None.
+
+        """
         print()
         print("-- Restarting Handler")
         
-        # reset (create) the img index
-        self.img_index = 0
-        
-        # clear (create) the list of image names and fill them
-        self.img_name_list = []
-        GIL.get_image_list(self.img_name_list, self.prop_path_img, "jpg")
-        self.img_name_list_length = len(self.img_name_list)
-        print("Image path: {}".format(self.prop_path_img))
-        
-        # load the first image
+        self.img_index = 0  # load the first image
         self.load_img(self.img_index)
-        print("Images are resized to: {}".format(self.prop_reduced_img_dim))
+        # perform weighted mean (set current image as background)
+        self.add_to_background_img(self.img["0 src"], overwrite=True)
         
-        # perform median filter
-        # self.median(self.img_set_resize)
-        
-        # perform weighted mean (set mean to current image)
-        self.add_to_background_img(source=self.img_set_resize, overwrite=True)
-        # self.add_to_background_img(source=self.img_set_median, overwrite=True)
-        
-        print("Weighted Mean Alpha: {}".format(self.prop_mean_weight_alpha))
-        
-        
-        self.prepare(prepare_time)  # prepare the mean image
-        
-        pass
-    
-    # TODO: Update if necessaray
-    def prepare(self, times=10):
-        times = int(times)
-        
-        self.img_index = 0
-        if (times >= len(self.img_name_list)):
-            print("Not enough items in 'self.img_name_list'.")
-            return
-        
-        for i in range(times):
-            # load next image
+        assert prepare_time >= 0 # We need a positive number of times to repeat this
+        for i in range(prepare_time):
+            # Repeated loading of images to generate a better BG image for the beginning
             self.load_img(self.img_index)
-            
-            # get median
-            # self.median(source=self.img_set_resize)
-            
-            # update weighted mean (BEFORE loading a new image)
-            self.add_to_background_img(source=self.img_set_resize)
-            # self.add_to_background_img(source=self.img_set_median)
-            
-            self.img_index += 1     #increment index
+            self.add_to_background_img(self.img["0 src"])
+            self.img_index += 1 
         
         self.img_index = 0      # reset index
-        
         pass
+    
     
     # TODO: Update if necessaray
     def iterate(self, times = 1):
@@ -731,9 +666,9 @@ if __name__== "__main__":
     
     myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
     
-    myIHC = IHC(myPath,maxFiles=200)
+    myILO = IHM.ImageLoaderClass(myPath,maxFiles=200)
     
-    myBEH = BeeExtractionHandler(myIHC,mean_weight_alpha=0.05)
+    myBEH = BeeExtractionHandler(myILO,mean_weight_alpha=0.05)
 
     # myHandler.restart(30)
     # %%
