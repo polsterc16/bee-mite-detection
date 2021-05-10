@@ -42,6 +42,8 @@ import matplotlib as mpl
 import pandas as pd
 import os
 
+from tqdm import tqdm 
+
 # Own Modules
 import ImageHandlerModule as IHM
 
@@ -56,46 +58,42 @@ class BeeExtractionHandler:
 
     Parameters
     ----------
-    IFObject : ImageFinderClass
-        Must be an ImageFinderClass object. Contains a list of images to be \
+    ILObject : : ImageLoaderClass
+        Must be an ImageLoaderClass object. Contains a list of images to be \
         used for extraction.
-    path_extracted : String (path), optional
+    path_extracted : : String (path), optional
         Path to directory for extracted images. The default is "extracted/".
-    median_filter_size : Integer, optional
-        Filter size for initial median filter. The default is 5.
-    mean_weight_alpha : Float (0...1), optional
+    gauss_blurr_kernel : : Integer, optional
+        Filter size for gaus blurr after difference from BG. The default is 5.
+    mean_weight_alpha : : Float (0...1), optional
         The weight with which a new image is added to the 'average' of the \
         backgorund image. The default is 0.1.
-    gauss_reduce_kernel : Integer, optional
+    gauss_reduce_kernel : : Integer, optional
         Kernel Size for the (TODO)filter . The default is 41.
-    gauss_reduce_threshold : Uint8, optional
+    gauss_reduce_threshold : : Uint8, optional
         Threshold value for threshold filter. The default is 160.
-    min_pixel_area : Number, optional
+    min_pixel_area : : Number, optional
         The minimum pixel area (mind reduced_img_dim) which is required to \
         plausibly contain a bee. The default is 1000.
-    dilate_kernel_size : Integer, optional
+    dilate_kernel_size : : Integer, optional
         Size of the Kernel when opning the Image (to get rid of small dots). \
         The default is 32.
-
-    Returns
-    -------
-    None.
-
     """
     
     def __init__(self, ILObject, path_extracted="./extracted/", \
                  # reduced_img_dim=(400,300), rectMask=(0,0,1,1), \
-                 median_filter_size=5, mean_weight_alpha=0.1, \
+                 gauss_blurr_kernel=5, mean_weight_alpha=0.1, \
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
+        self.img_index = 0
         self.img = dict()
         self.img["bg"]=None
-        self.img["0 src"]=None
+        self.img["00 src"]=None
         
         self.set_ImageLoaderObject(ILObject)
         self.set_path_extracted(path_extracted)
         
-        self.set_median_filter_size(median_filter_size)
+        self.set_gauss_blurr_kernel(gauss_blurr_kernel)
         self.set_mean_weight_alpha(mean_weight_alpha)
         self.set_gauss_reduce_kernel(gauss_reduce_kernel)
         self.set_gauss_reduce_threshold(gauss_reduce_threshold)
@@ -106,7 +104,7 @@ class BeeExtractionHandler:
         
         
         # print("-- Handler Object created")
-        self.restart()
+        self.restart(50)
         pass
     
     # TODO: Update if necessaray
@@ -120,6 +118,7 @@ class BeeExtractionHandler:
     
     # DONE
     def set_ImageLoaderObject(self, new_ILO):
+        """Sets the 'ImageLoaderClass' from which the images to read are loaded."""
         # Make sure, you have a correct IHC Object type
         assert type(new_ILO) == IHM.ImageLoaderClass
         
@@ -128,6 +127,7 @@ class BeeExtractionHandler:
     
     # DONE: could be better
     def set_path_extracted(self,path_extracted):
+        """Sets the path to save all extracted information to."""
         assert (type(path_extracted) == str)    # ensure that path is a string
         
         # Stop object creation, if no valid file path is given
@@ -143,20 +143,18 @@ class BeeExtractionHandler:
     # TODO: Update if necessaray
     def add_to_background_img(self, img_new, overwrite=False):
         """
-        Either overwrites the "background" image with "img_new" (overwrite=True).
+        Either overwrites the "background" image with "img_new" (overwrite=True). \
         Or adds the "img_new" (weighted addition) to the "background" image.
+        
+        self.img["bg"] must be converted to np.uint8 before using imshow.
 
         Parameters
         ----------
-        img_new : cv2-grayscale image
+        img_new : : cv2-grayscale image
             Image to be added to "background".
-        overwrite : BOOL, optional
+        overwrite : : BOOL, optional
             Determines wether the current "background" image is overwritten \
             instead of a weighted addition. The default is False.
-
-        Returns
-        -------
-        None.
         """
         if (overwrite):
             # overwrite "background" image with "img_new" 
@@ -165,20 +163,27 @@ class BeeExtractionHandler:
             # weighted accumulation
             assert img_new.shape == self.img["bg"].shape    # ensure that we can add them
             cv2.accumulateWeighted( img_new, self.img["bg"], self.prop_mean_weight_alpha)
+        
         pass
     
     # DONE
     def load_img(self, index):
-        # Loads image(index) to local image variable
-        self.img["0 src"] = self.ILO.get_img(index).copy()
+        """Loads the image at 'index' position. \
+        (Path information comes from List of ImageLoaderClass)
+        """
+        # Loads/Copies image(index) to local image variable
+        self.img["00 src"] = self.ILO.get_img(index).copy()
         pass
     
     
     # SETTINGs for Image extraction -------------------------------------------
     
     # TODO: Update if necessaray
-    def set_median_filter_size(self, median_filter_size):
-        self.prop_median_filter_size= int(median_filter_size)
+    def set_gauss_blurr_kernel(self, gauss_blurr_kernel):
+        # gauss kernel size must be an odd integer
+        temp = int(gauss_blurr_kernel)
+        if (temp % 2) != 1: temp += 1
+        self.prop_gauss_blurr_kernel = (temp, temp)
         pass
     
     # TODO: Update if necessaray
@@ -214,30 +219,45 @@ class BeeExtractionHandler:
     
     # PERFORMING of Image extraction ------------------------------------------
     
-    # TODO: Update if necessaray
-    def median(self, source):
-        """img_set_median"""
-        self.img_set_median = cv2.medianBlur(source, self.prop_median_filter_size)
-        pass
+    # # TODO: Update if necessaray
+    # def median(self, source):
+    #     """img_set_median"""
+    #     self.img_set_median = cv2.medianBlur(source, self.prop_median_filter_size)
+    #     pass
     
     # TODO: Update if necessaray
-    def difference_from_mean(self, source):
+    def difference_from_BG(self, source):
         """img_set_diff"""
         # self.img_set_diff = np.int16(self.img_set_mean) - np.int16(self.img_set_resize)
-        self.img_set_diff = np.int16(self.img_set_mean) - np.int16(source)
+        self.img["10 diff"] = np.int16(self.img["bg"]) - np.int16(source)
         pass
     
     # TODO: Update if necessaray
     def threshold_diff(self, source):
         """img_set_threshold"""
-        # cut off negative values
+        # 10 : cut off negative values
         _,img = cv2.threshold(source,0,255,cv2.THRESH_TOZERO)
         
-        temp = cv2.GaussianBlur(np.uint8(img),(5,5),0)
-        self.img_blurr_max = np.max(temp)
+        # 20 : perform gaussian blurr (kernel size defined in constructor)
+        k = self.prop_gauss_blurr_kernel
+        temp = cv2.GaussianBlur(np.uint8(img),k,0)
+        max_val = np.max(temp)   # get max value after blurring
         
+        # print("DEBUG 1\n")
+        cv2.imshow("temp",temp)
+        # myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
+        # print("DEBUG 2\n")
+        #plt.hist(temp,256,[0,256]); plt.draw()
+        
+        # 30 : determine mean value and standard-deviation of blurred image
         mean,std = cv2.meanStdDev(temp)
+        
+        # print("DEBUG 3\n")
+        
+        # 40 : set a new threshold (manual adjusting!)
         self.img_blurr_thres = int(mean + std*1.2)
+        
+        # 50 : perform threshold with new threshold value
         # _,self.img_set_threshold = cv2.threshold(self.img_set_blurr,self.img_blurr_thres,255,cv2.THRESH_TOZERO)
         _,self.img_set_threshold = \
             cv2.threshold(temp, self.img_blurr_thres, 255, cv2.THRESH_BINARY)
@@ -430,28 +450,28 @@ class BeeExtractionHandler:
 
         Parameters
         ----------
-        prepare_time : INTEGER, optional
+        prepare_time : : INTEGER, optional
             How many images to load for generating the initial background image. \
             The default is 5.
-
-        Returns
-        -------
-        None.
-
         """
         print()
         print("-- Restarting Handler")
         
-        self.img_index = 0  # load the first image
+        # 1 : load the first image
+        self.img_index = 0
         self.load_img(self.img_index)
-        # perform weighted mean (set current image as background)
-        self.add_to_background_img(self.img["0 src"], overwrite=True)
         
+        # 2 : perform weighted mean (set current image as background)
+        self.add_to_background_img(self.img["00 src"], overwrite=True)
+        
+        # 3 : use the first 'prepare_time' number of images to get a usaable background
         assert prepare_time >= 0 # We need a positive number of times to repeat this
-        for i in range(prepare_time):
+        
+        # usage of loading bar indicator (tqdm)
+        for i in tqdm(range(prepare_time), desc="Restart: Preparing Background image"):
             # Repeated loading of images to generate a better BG image for the beginning
             self.load_img(self.img_index)
-            self.add_to_background_img(self.img["0 src"])
+            self.add_to_background_img(self.img["00 src"])
             self.img_index += 1 
         
         self.img_index = 0      # reset index
@@ -460,29 +480,38 @@ class BeeExtractionHandler:
     
     # TODO: Update if necessaray
     def iterate(self, times = 1):
+        """
+        This function will perform ALL extraction steps for the set number \
+        of images. (incremental increase from the current index)
+
+        Parameters
+        ----------
+        times : : INTEGER, optional
+            How many images shall be used for extraction. The default is 1.
+        """
+        assert times>0  # MUST be a number >= 1 !!!
+        
         # try:
         for i in range(times):
-            # increment the index and check if index is still inside the list
+            # 10 : increment the index and check if index is still inside the list
             self.img_index += 1
             if (self.img_index >= self.ILO._size):
                 print("No more Iterations possible. \
                       Index has reached end of img_name_list.")
                 return
             
-            # update weighted mean (BEFORE loading a new image)
-            self.add_to_background_img(source=self.img_set_resize)
+            # 20 : update weighted mean with last image (BEFORE loading a new image)
+            self.add_to_background_img(img_new=self.img["00 src"])
             
-            # load the current image
+            # 30 : load the current image
             self.load_img(self.img_index)
             
-            # self.median(source=self.img_set_resize)
-            
-            # calc difference from blurr to mean
-            self.difference_from_mean(source=self.img_set_resize)
+            # 40 : calc difference from blurr to mean
+            self.difference_from_BG(source=self.img["00 src"]) #self.img["10 diff"]
             
             
             # threshold
-            self.threshold_diff(source=self.img_set_diff)
+            self.threshold_diff(source=self.img["10 diff"])
             
             # gaussian blurr
             self.gauss_blurr_reduce(source=self.img_set_threshold)
@@ -667,6 +696,10 @@ if __name__== "__main__":
     print("numpy.version = {}".format(np.__version__))
     print("matplotlib.version = {}".format(mpl.__version__))
     print("pandas.version = {}".format(pd.__version__))
+    try:
+        print("pyqt5.version = {}".format(PyQt5.QtCore.QT_VERSION_STR))
+    except:
+        pass
     
     # Window Cleanup
     cv2.destroyAllWindows()
@@ -675,20 +708,23 @@ if __name__== "__main__":
     
     myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
     
-    myILO = IHM.ImageLoaderClass(myPath,maxFiles=200)
+    myIFC = IHM.ImageFinderClass(myPath,maxFiles=100)
+    myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
+        
     
-    myBEH = BeeExtractionHandler(myILO,mean_weight_alpha=0.05)
+    myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
 
     # myHandler.restart(30)
     # %%
     # myHandler.iterate(times=8)
     # %%
-    myBEH.iter_and_plot(times=1)
+    # myBEH.iter_and_plot(times=1)
     # %%
     # myHandler.iter_and_plot_update(times=1)
     # %%
     
-    
-    
+    cv2.imshow("bg",np.uint8(myBEH.img["bg"]))
+    #%%
+    cv2.imshow("00",myBEH.img["00 src"])
     
     
