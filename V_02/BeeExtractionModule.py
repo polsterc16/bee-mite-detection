@@ -50,27 +50,32 @@ import ImageHandlerModule as IHM
 
 class BeeExtractionHandler:
     """
-    Handles the extraction of images from a list of images (as defined in ImageHandlerObject).
+    Handles the extraction of images from a list of images (as defined in \
+    ImageHandlerObject).
     Will place extracted images in specified directory.
 
     Parameters
     ----------
     IFObject : ImageFinderClass
-        Must be an ImageFinderClass object. Contains a list of images to be used for extraction.
+        Must be an ImageFinderClass object. Contains a list of images to be \
+        used for extraction.
     path_extracted : String (path), optional
         Path to directory for extracted images. The default is "extracted/".
     median_filter_size : Integer, optional
         Filter size for initial median filter. The default is 5.
     mean_weight_alpha : Float (0...1), optional
-        The weight with which a new image is added to the 'average' of the backgorund image. The default is 0.1.
+        The weight with which a new image is added to the 'average' of the \
+        backgorund image. The default is 0.1.
     gauss_reduce_kernel : Integer, optional
         Kernel Size for the (TODO)filter . The default is 41.
     gauss_reduce_threshold : Uint8, optional
         Threshold value for threshold filter. The default is 160.
     min_pixel_area : Number, optional
-        The minimum pixel area (mind reduced_img_dim) which is required to plausibly contain a bee. The default is 1000.
+        The minimum pixel area (mind reduced_img_dim) which is required to \
+        plausibly contain a bee. The default is 1000.
     dilate_kernel_size : Integer, optional
-        Size of the Kernel when opning the Image (to get rid of small dots). The default is 32.
+        Size of the Kernel when opning the Image (to get rid of small dots). \
+        The default is 32.
 
     Returns
     -------
@@ -146,7 +151,8 @@ class BeeExtractionHandler:
         img_new : cv2-grayscale image
             Image to be added to "background".
         overwrite : BOOL, optional
-            Determines wether the current "background" image is overwritten instead of a weighted addition. The default is False.
+            Determines wether the current "background" image is overwritten \
+            instead of a weighted addition. The default is False.
 
         Returns
         -------
@@ -418,12 +424,15 @@ class BeeExtractionHandler:
     # Done
     def restart(self, prepare_time=5):
         """
-        Resets index. Sets first image as the Background image. Loads the next x images to generate a more 'realistic' background image. Resets Index.
+        Resets index. Sets first image as the Background image. \
+        Loads the next x images to generate a more 'realistic' background image. \
+        Resets Index.
 
         Parameters
         ----------
         prepare_time : INTEGER, optional
-            How many images to load for generating the initial background image. The default is 5.
+            How many images to load for generating the initial background image. \
+            The default is 5.
 
         Returns
         -------
@@ -455,7 +464,7 @@ class BeeExtractionHandler:
         for i in range(times):
             # increment the index and check if index is still inside the list
             self.img_index += 1
-            if (self.img_index >= len(self.img_name_list)):
+            if (self.img_index >= self.ILO._size):
                 print("No more Iterations possible. \
                       Index has reached end of img_name_list.")
                 return
