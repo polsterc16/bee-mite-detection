@@ -21,13 +21,13 @@ class ImageFinderClass:
 
     Parameters
     ----------
-    filePathString : STRING
+    filePathString : : STRING
         Location of the directory from which the images will be taken.
-    acceptedExtensionList : LIST or TUPLE (or STRING of a single extension), optional
+    acceptedExtensionList : : LIST or TUPLE (or STRING of a single extension), optional
         List of STRINGS which define which file extensions are looked for. The default is ("jpg",).
-    maxFiles : INTEGER, optional
+    maxFiles : : INTEGER, optional
         A value of greater than Zero will limit the number of files which are added to the list, otherwise all valid files are added. The default is 0.
-    DebugPrint : BOOLEAN, optional
+    DebugPrint : : BOOLEAN, optional
         If set to TRUE, will print additional information when the Constructor is Called. The default is False.
 
     """
@@ -50,6 +50,10 @@ class ImageFinderClass:
 
 
     def set_dir_path(self, fpath, DebugPrint=False):
+        """
+        Checks if file path is valid. \
+        Store filepath if valid, throw exception otherwise.
+        """
         if DebugPrint: print("## Function Call: set_dir_path")
         
         # Checks if path is a directory
@@ -68,6 +72,15 @@ class ImageFinderClass:
     
     
     def set_ext_list(self, ext_list, DebugPrint=False):
+        """Checks if the provided 'ext_list' is of the correct type/formating.
+                
+        Accepted formating
+        ----------
+        String : : Must be a single string of a file extension.
+        
+        Tuple or List : : Must be a tuple or list which ONLY contains strings \
+        of file extensions.
+        """
         if DebugPrint: print("## Function Call: set_ext_list")
         
         # Quick fix for just passing a string as accepted extension
@@ -89,6 +102,10 @@ class ImageFinderClass:
     
     
     def find_extension_files(self, maxFiles, DebugPrint=False):
+        """
+        This function generates a list of all files with matching file extension \
+        (or up to the max number), that can be found inside the defined directory.
+        """
         if DebugPrint: print("## Function Call: find_extension_files")
         
         self.file_list = []
@@ -126,14 +143,18 @@ class ImageLoaderClass:
 
     Parameters
     ----------
-    base_IFC : ImageFinderClass Object
+    base_IFC : : ImageFinderClass Object
         The 'ImageFinderClass' Object defines which images can be loaded.
-    grayscale_en : BOOL, optional
+    grayscale_en : : BOOL, optional
         Defines if the loaded image will be converted to grayscale. The default is True.
-    new_dim : TUPLE(INT,INT), optional
-        This tuple defines to which dimensions the image shall be resized. The default is None.
-    mask_rel : TUPLE(FLOAT,FLOAT,FLOAT,FLOAT), optional
-        Defines a rectangular mask in relative coordinates (x1, x2, y1, y2). All pixels outside the defined rectangle will be set to 0. The default is (0.0, 0.0, 1.0, 1.0).
+    new_dim : : TUPLE(INT,INT), optional
+        This tuple defines to which dimensions the image shall be resized (w,h). \
+        The default is (400,300).
+    mask_rel : : TUPLE(FLOAT,FLOAT,FLOAT,FLOAT), optional
+        Defines a rectangular mask in relative coordinates (x1,y1, x2, y2). \
+        All pixels outside the defined rectangle will be set to 0. \
+        (0,0) is topleft and (1,1) is bottomright in CV2 formating. \
+        The default is (0.0, 0.0, 1.0, 1.0).
 
     Returns
     -------
@@ -161,6 +182,10 @@ class ImageLoaderClass:
         pass
     
     def _set_grayscale(self, grayscale_en):
+        """
+        Defines whether the loaded image will be converted to grayscale or \
+        left unchanged.
+        """
         # Ensure correct parameter type
         if not type(grayscale_en) == bool:
             raise Exception("grayscale_en must be a bool!")
@@ -168,6 +193,15 @@ class ImageLoaderClass:
         pass
     
     def _set_dim(self, dim):
+        """
+        Sets the image dimension to which all images shall be resized \
+        before they are processed
+
+        Parameters
+        ----------
+        dim : : LIST or TUPLE of two integers
+            Defines the dimensions (w,h) to which all loaded images shall be resized to.
+        """
         # Check if we are dealing with a list here
         if type(dim) not in [list, tuple]:
             raise Exception("Not a List or Tuple!")
@@ -188,6 +222,31 @@ class ImageLoaderClass:
         pass
     
     def _set_mask_rel(self,m):
+        """
+        This function defines a positive mask in relative coordinates to \
+        ignore all image information outside the defined rectangle.
+        
+        The function checks, if the input tuple of 4 floats is in the correct \
+        format for marking the 2 defining vertices of a rectangle \
+        (x1,y1, x2,y2) in a relative range from [0,1]. \
+        (with the limitation 0<x1<x2<1 and 0<y1<y2<1) 
+        
+        (0,0) is topleft and (1,1) is bottomright in CV2 formating.
+        
+        This will later be upscaled to the real image dimensions. \
+        (The realtive dimensions are used, so that the code \
+        does not break, if the size of the images change.)
+            
+        If all checks are OK, the function for generating a masking image \
+        is called, which generates an image of the same absolute size as the target \
+        image in which all pixel in the rectangle are set to '1'. (positive mask)
+
+        Parameters
+        ----------
+        m : : TUPLE or LIST of 4 Float values
+            Defines a rectangle with two vertices (x1,y1, x2,y2) in a relative \
+            coordinate system of range from [0,1]. 
+        """
         import numbers
         
         # Check if we are dealing with a list here
@@ -205,7 +264,8 @@ class ImageLoaderClass:
         # Check if our dim is a list of two ints (which is desired)
         # REMEMBER: mask = (x1,y1, x2,y2)
         if not all([0 <= m[0], m[0] < m[2], m[2] <= 1, 0 <= m[1], m[1] < m[3], m[3] <= 1]):
-            raise Exception("List must contain four positive numbers in the RANGE [0,1]!")
+            raise Exception("List must contain four positive numbers in the RANGE [0,1]! \
+                            (x1,y1, x2,y2) with the limitation 0<x1<x2<1 and 0<y1<y2<1.")
         
         self._mask_rel = [np.float32(x) for x in m]
         
@@ -213,6 +273,15 @@ class ImageLoaderClass:
         pass
     
     def _gen_mask_abs(self):
+        """
+        This function takes the (previously validated) relative mask \
+        coordinates and the absolute size of the target image and generates \
+        an image of the same size as the target image, in which all pixels \
+        inside the defined rectangle are set to '1' (positive mask).
+        
+        This mask is later used to bitwise-AND the loaded image. \
+        All pixels outside the rectangle will be set to '0' (black).
+        """
         mr = self._mask_rel         # get mask (relative)
         sx,sy = self._scale_dim     # get reduced dimensions
         
@@ -226,6 +295,7 @@ class ImageLoaderClass:
         # Draw mask as white (255) rectangle
         img_mask = cv2.rectangle(img_mask, pt1, pt2, 255, cv2.FILLED)
         
+        # If we dont work in grayscale, then we convert to BGR
         if not self._grayscale:
             img_mask = cv2.cvtColor(img_mask, cv2.COLOR_GRAY2BGR)
         
@@ -239,6 +309,17 @@ class ImageLoaderClass:
     
     
     def _load_img(self, index):
+        """
+        Based on the list of images from the ImageFinderClass, \
+        this function loads the image of specified index in that list.
+        
+        The image may be converted to grayscale. 
+        
+        The image is resized to the defined target dimensions.
+        
+        The mask is applied via a bitwise-AND to ignore regions that are \
+        unimportant or that might cause interference.
+        """
         # Check if index is possible
         if index not in range(self._size):
             raise Exception("Index ({}) out of bounds (length={})".format(index,self._size))
@@ -271,6 +352,7 @@ class ImageLoaderClass:
     
     
     def get_img(self, index):
+        """Returns the loaded (and prepared) image of the defined index"""
         self._load_img(index)
         return self._img
         pass
@@ -301,7 +383,7 @@ if __name__ == "__main__":
         myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
         myIFC = ImageFinderClass(myPath,maxFiles=100)
         
-        myILC = ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.0,0.0,.85,.95),grayscale_en=False)
+        myILC = ImageLoaderClass(myIFC, new_dim=(300,300),mask_rel=(0.1,0.2,.7,.99),grayscale_en=False)
         
         im = myILC.get_img(1)
         cv2.imshow("im",im)
