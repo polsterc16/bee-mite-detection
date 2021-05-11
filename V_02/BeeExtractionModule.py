@@ -69,6 +69,10 @@ class BeeExtractionHandler:
         Path to directory for extracted images. The default is "extracted/".
     gauss_blurr_kernel : : Integer, optional
         Filter size for gaus blurr after difference from BG. The default is 5.
+    otsu_min_threshold : : Integer, optional
+        Minimum accepted threshold value resulting from the OTSU algorithm. \
+        Difference images with a value below this will be considered to be \
+        [empty]. The default is 10.
     mean_weight_alpha : : Float (0...1), optional
         The weight with which a new image is added to the 'average' of the \
         backgorund image. The default is 0.1.
@@ -85,8 +89,7 @@ class BeeExtractionHandler:
     """
     
     def __init__(self, ILObject, path_extracted="./extracted/", \
-                 # reduced_img_dim=(400,300), rectMask=(0,0,1,1), \
-                 gauss_blurr_kernel=5, mean_weight_alpha=0.1, \
+                 gauss_blurr_kernel=5, otsu_min_threshold=10, mean_weight_alpha=0.1, \
                  gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
                  min_pixel_area=1000, dilate_kernel_size=32):
         self.img_index = 0
@@ -98,6 +101,7 @@ class BeeExtractionHandler:
         self.set_path_extracted(path_extracted)
         
         self.set_gauss_blurr_kernel(gauss_blurr_kernel)
+        self.set_otsu_min_threshold(otsu_min_threshold)
         self.set_mean_weight_alpha(mean_weight_alpha)
         self.set_gauss_reduce_kernel(gauss_reduce_kernel)
         self.set_gauss_reduce_threshold(gauss_reduce_threshold)
@@ -203,6 +207,13 @@ class BeeExtractionHandler:
         self.prop_gauss_reduce_kernel = (temp, temp)
         pass
     
+    # DONE
+    def set_otsu_min_threshold(self, otsu_min_threshold):
+        """Sets the minimum accepted threshold value generated from the OTSU \
+        algorithm."""
+        self.otsu_min_threshold = int(otsu_min_threshold)
+        pass
+    
     # TODO: Update if necessaray
     def set_gauss_reduce_threshold(self, gauss_reduce_threshold):
         self.prop_gauss_reduce_threshold= int(gauss_reduce_threshold)
@@ -234,51 +245,44 @@ class BeeExtractionHandler:
         """img_set_diff"""
         # self.img_set_diff = np.int16(self.img_set_mean) - np.int16(self.img_set_resize)
         self.img["10 diff"] = np.int16(self.img["bg"]) - np.int16(source)
+        
+        """Due to the bees being dark (lower values) compared to the light 
+        background (higher values, we must subtract the current image from 
+        the BG, to get positive values for the position of new bees.
+        (and negative values for the positions were bees have left).
+        (the negative values will be ignored lateron)"""
         pass
     
     # TODO: Update if necessaray
     def threshold_diff(self, source):
-        """img_set_threshold"""
+        """Performs gaussian blurr on difference image (source).
+        
+        Thresholds the difference image (source) with OTSU algorithm. 
+        If the OTSU threshold is below the min_th_value, then the output image 
+        MUST be viewed as 'empty'."""
+        
         # 10 : cut off negative values
+        # This ignores artefacts from bees leaving the image (which would be negative)
         _,img = cv2.threshold(source,0,255,cv2.THRESH_TOZERO)
         
         # 20 : perform gaussian blurr (kernel size defined in constructor)
         k = self.prop_gauss_blurr_kernel
-        temp = cv2.GaussianBlur(np.uint8(img),k,0)
-        max_val = np.max(temp)   # get max value after blurring
+        diff_blurred = cv2.GaussianBlur(np.uint8(img),k,0)
         
-        # print("DEBUG 1\n")
-        cv2.imshow("temp",temp)
-        myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
+        # myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
         
-        plt.hist(myHist,256,[0,255])
-        thismanager = plt.get_current_fig_manager()
-        thismanager.window.setGeometry(600,100,640, 545)
-        plt.draw()
+        # 50 : perform threshold with OTSU, but be careful about its threshold value!
+        otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
-        # plt.xlim([0,256])
-        print("DEBUG 2\n")
-        # cv2.waitKey(0,1000)
+        self.img["20 threshold"] = img_otsu
         
-        # 30 : determine mean value and standard-deviation of blurred image
-        mean,std = cv2.meanStdDev(temp)
-        print(mean,std)
-        
-        print("DEBUG 3\n")
-        raise Exception()
-        
-        # 40 : set a new threshold (manual adjusting!)
-        self.img_blurr_thres = int(mean + std*1.2)
-        
-        # 50 : perform threshold with new threshold value
-        # _,self.img_set_threshold = cv2.threshold(self.img_set_blurr,self.img_blurr_thres,255,cv2.THRESH_TOZERO)
-        _,self.img_set_threshold = \
-            cv2.threshold(temp, self.img_blurr_thres, 255, cv2.THRESH_BINARY)
-        pass
+        return otsu_threshold
     
     # -------------------------------------------------------------------------
-    # TODO: TESTING `FUNCTION FOR THRESHOLDING
+    # DONE: TESTING `FUNCTION FOR THRESHOLDING
     def threshold_diff_TEST_inc(self,iterations=1):
+        raise Exception("Do not call this function anymore, unless debugging!")
+        
         if iterations>1:
             for i in tqdm(range(iterations), desc="BG iterations before threshold"):
                 # 10 : increment the index and check if index is still inside the list
@@ -342,16 +346,24 @@ class BeeExtractionHandler:
     
     
     # TODO: Update if necessaray
-    def gauss_blurr_reduce(self, source):
-        """img_set_reduced"""
-        temp = cv2.GaussianBlur(source, self.prop_gauss_reduce_kernel, 0 ) # blurr the images
-        _,self.img_set_reduced = \
-            cv2.threshold(temp, self.prop_gauss_reduce_threshold, 255, \
+    def gauss_blurr_reduce(self, source, DEBUG=False):
+        """Performs a gaussian blurr on the threshold image (source). 
+        
+        After blurring, another threshold is performed (TH somewhere above 128). 
+        This shall reconnect legs/wings/antenna back to the body, that may only 
+        be separate blibs in the image.
+        
+        Afterwards, an OPEN operation is performed, to get rid of smaller 
+        pixel artefacts."""
+        thres_blurred = cv2.GaussianBlur(source, self.prop_gauss_reduce_kernel, 0 ) # blurr the images
+        _,img_reduced = \
+            cv2.threshold(thres_blurred, self.prop_gauss_reduce_threshold, 255, \
                           cv2.THRESH_BINARY)
         
         # for safety reasons, we also apply "opening" = dilate(erode(img)) - to avoi 1px spots
-        self.img_set_reduced = \
-            cv2.morphologyEx( self.img_set_reduced, cv2.MORPH_OPEN, np.ones((5,5),np.uint8) )
+        img_opened = cv2.morphologyEx( img_reduced, cv2.MORPH_OPEN, np.ones((5,5),np.uint8) )
+        
+        
         pass
     
     # TODO: Update if necessaray
@@ -585,22 +597,29 @@ class BeeExtractionHandler:
             self.load_img(self.img_index)
             
             # 40 : calc difference from blurr to mean
-            self.difference_from_BG(source=self.img["00 src"]) #self.img["10 diff"]
+            self.difference_from_BG(source=self.img["00 src"]) # => self.img["10 diff"]
             
             
-            # threshold
-            self.threshold_diff(source=self.img["10 diff"])
+            # 50 : threshold of the difference
+            otsu_th = self.threshold_diff(source=self.img["10 diff"]) # => self.img["20 threshold"]
             
-            # gaussian blurr
-            self.gauss_blurr_reduce(source=self.img_set_threshold)
+            # 60 : Check, if otsu threshold may be empty
+            if otsu_th < self.otsu_min_threshold:
+                # THIS IMAGE IS EMPTY!!! STOP HERE!
+                print("empty image")
+                
+            else:
             
-            # selection and seperation
-            self.get_contours_reduced(source=self.img_set_reduced)
-            
-            
-            self.extract_from_contours(source_contours=self.cont_good, \
-                                       source_img=self.img_set_resize, \
-                                       orig_img=self.img_set_original)
+                # gaussian blurr
+                self.gauss_blurr_reduce(source=self.img_set_threshold)
+                
+                # selection and seperation
+                self.get_contours_reduced(source=self.img_set_reduced)
+                
+                
+                self.extract_from_contours(source_contours=self.cont_good, \
+                                           source_img=self.img_set_resize, \
+                                           orig_img=self.img_set_original)
             
             
             # dilate
@@ -794,17 +813,7 @@ if __name__== "__main__":
 
     #%%
     plt.close('all')
-    myhist,otsu_threshold,diff=myBEH.threshold_diff_TEST_inc(1)
-    print("otsu: ",otsu_threshold)
-    
-    thresholdval=0.75
-    total = int(np.sum(myhist))
-    acum=0
-    for i in range(len(myhist)):
-        acum += int(myhist[i])
-        if acum >= total*thresholdval:
-            print("{} exceeded after {} bins ({}/{}={:.3f}).".format(thresholdval, i+1,acum,total,acum/total))
-            break
+
                  
         
     
