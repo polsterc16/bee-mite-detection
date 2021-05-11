@@ -6,7 +6,6 @@ Created on Wed Apr  7 14:55:24 2021
 
 PURPOSE: Find appropriate filters that allow for finding regions containing Bees. And Extract them.
 
-VERSION: 002
 
 
 # Based on V_01/test_12.py
@@ -32,6 +31,10 @@ gaus - thres - dilate
 9) versuchen, das mit 2000 bildern durchzuführen
 
 """
+#%%
+
+version = "002"
+
 
 #%% IMPORTS
 
@@ -42,10 +45,11 @@ import matplotlib as mpl
 import pandas as pd
 import os
 
-from tqdm import tqdm 
+from tqdm import tqdm #may not be used
 
 # Own Modules
 import ImageHandlerModule as IHM
+import PlotHelperModule as PHM
 
 
 # %% CLASS DEFINES
@@ -104,7 +108,7 @@ class BeeExtractionHandler:
         
         
         # print("-- Handler Object created")
-        self.restart(50)
+        self.restart(10)
         pass
     
     # TODO: Update if necessaray
@@ -245,14 +249,23 @@ class BeeExtractionHandler:
         
         # print("DEBUG 1\n")
         cv2.imshow("temp",temp)
-        # myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
-        # print("DEBUG 2\n")
-        #plt.hist(temp,256,[0,256]); plt.draw()
+        myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
+        
+        plt.hist(myHist,256,[0,255])
+        thismanager = plt.get_current_fig_manager()
+        thismanager.window.setGeometry(600,100,640, 545)
+        plt.draw()
+        
+        # plt.xlim([0,256])
+        print("DEBUG 2\n")
+        # cv2.waitKey(0,1000)
         
         # 30 : determine mean value and standard-deviation of blurred image
         mean,std = cv2.meanStdDev(temp)
+        print(mean,std)
         
-        # print("DEBUG 3\n")
+        print("DEBUG 3\n")
+        raise Exception()
         
         # 40 : set a new threshold (manual adjusting!)
         self.img_blurr_thres = int(mean + std*1.2)
@@ -262,6 +275,50 @@ class BeeExtractionHandler:
         _,self.img_set_threshold = \
             cv2.threshold(temp, self.img_blurr_thres, 255, cv2.THRESH_BINARY)
         pass
+    
+    # -------------------------------------------------------------------------
+    # TODO: TESTING `FUNCTION FOR THRESHOLDING
+    def threshold_diff_TEST_inc(self):
+        # 10 : increment the index and check if index is still inside the list
+        self.img_index += 1
+        if (self.img_index >= self.ILO._size):
+            print("No more Iterations possible. Index has reached end of img_name_list.")
+            return
+        # 20 : update weighted mean with last image (BEFORE loading a new image)
+        self.add_to_background_img(img_new=self.img["00 src"])
+        # 30 : load the current image
+        self.load_img(self.img_index)
+        # 40 : calc difference from blurr to mean
+        self.difference_from_BG(source=self.img["00 src"]) #self.img["10 diff"]
+        #-------------------
+        # 10 : cut off negative values
+        _,diff =  cv2.threshold(self.img["10 diff"],0,255,cv2.THRESH_TOZERO) 
+        diff_uint8 = np.uint8(diff)
+        # 20 : perform gaussian blurr (kernel size defined in constructor)
+        k = self.prop_gauss_blurr_kernel
+        diff_blurred = cv2.GaussianBlur(diff_uint8,k,0)
+        
+        myHist = cv2.calcHist([diff_blurred],[0],None,[256],[0,256])
+        
+        plt.hist(myHist,256,[0,255])
+        thismanager = plt.get_current_fig_manager()
+        thismanager.window.setGeometry(900,100,640, 545)
+        plt.draw()
+        
+        # 30 : determine mean value and standard-deviation of blurred image
+        mean,std = cv2.meanStdDev(diff_blurred)
+        print(mean,std)
+        
+        labels=["image","BG","diff_blurred"]
+        imgs = [self.img["00 src"], self.img["bg"], diff_blurred]
+        mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff_TEST_inc")
+        
+        
+        
+        
+        return myHist
+    # -------------------------------------------------------------------------
+    
     
     # TODO: Update if necessaray
     def gauss_blurr_reduce(self, source):
@@ -467,7 +524,7 @@ class BeeExtractionHandler:
         # 3 : use the first 'prepare_time' number of images to get a usaable background
         assert prepare_time >= 0 # We need a positive number of times to repeat this
         
-        # usage of loading bar indicator (tqdm)
+        # usage of loading bar indicator (#tqdm)
         for i in tqdm(range(prepare_time), desc="Restart: Preparing Background image"):
             # Repeated loading of images to generate a better BG image for the beginning
             self.load_img(self.img_index)
@@ -714,17 +771,20 @@ if __name__== "__main__":
     
     myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
 
-    # myHandler.restart(30)
-    # %%
-    # myHandler.iterate(times=8)
-    # %%
-    # myBEH.iter_and_plot(times=1)
-    # %%
-    # myHandler.iter_and_plot_update(times=1)
-    # %%
-    
-    cv2.imshow("bg",np.uint8(myBEH.img["bg"]))
     #%%
-    cv2.imshow("00",myBEH.img["00 src"])
+    plt.close('all')
+    myhist=myBEH.threshold_diff_TEST_inc()
     
+    thresholdval=0.75
+    total = int(np.sum(myhist))
+    acum=0
+    for i in range(len(myhist)):
+        acum += int(myhist[i])
+        if acum >= total*thresholdval:
+            print("{} exceeded after {} bins ({}/{}={:.3f}).".format(thresholdval, i+1,acum,total,acum/total))
+            break
+                 
+        
+    
+    # myBEH.iterate(times=8)
     
