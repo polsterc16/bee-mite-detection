@@ -390,11 +390,11 @@ class BeeExtractionHandler:
             
             
             # create a mask based on current contour
-            mask = np.zeros(source.shape, np.uint8)
+            mask = np.zeros(img.shape, np.uint8)
             cv2.drawContours(mask, c, -1, 255, -1)
             
             # get avg color in source img, that is in the contour area - throw out, if too dark (black hole)
-            mean = cv2.mean(source, mask=mask)
+            mean = cv2.mean(img, mask=mask)
             if mean[0] <= 127: 
                 continue    # skip, if the avg color is too low (sign of an encaspulated black area)
             
