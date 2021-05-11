@@ -278,16 +278,29 @@ class BeeExtractionHandler:
     
     # -------------------------------------------------------------------------
     # TODO: TESTING `FUNCTION FOR THRESHOLDING
-    def threshold_diff_TEST_inc(self):
-        # 10 : increment the index and check if index is still inside the list
-        self.img_index += 1
-        if (self.img_index >= self.ILO._size):
-            print("No more Iterations possible. Index has reached end of img_name_list.")
-            return
-        # 20 : update weighted mean with last image (BEFORE loading a new image)
-        self.add_to_background_img(img_new=self.img["00 src"])
-        # 30 : load the current image
-        self.load_img(self.img_index)
+    def threshold_diff_TEST_inc(self,iterations=1):
+        if iterations>1:
+            for i in tqdm(range(iterations), desc="BG iterations before threshold"):
+                # 10 : increment the index and check if index is still inside the list
+                self.img_index += 1
+                if (self.img_index >= self.ILO._size):
+                    print("No more Iterations possible. Index has reached end of img_name_list.")
+                    return
+                # 20 : update weighted mean with last image (BEFORE loading a new image)
+                self.add_to_background_img(img_new=self.img["00 src"])
+                # 30 : load the current image
+                self.load_img(self.img_index)
+        else:
+            # 10 : increment the index and check if index is still inside the list
+            self.img_index += 1
+            if (self.img_index >= self.ILO._size):
+                print("No more Iterations possible. Index has reached end of img_name_list.")
+                return
+            # 20 : update weighted mean with last image (BEFORE loading a new image)
+            self.add_to_background_img(img_new=self.img["00 src"])
+            # 30 : load the current image
+            self.load_img(self.img_index)
+            
         # 40 : calc difference from blurr to mean
         self.difference_from_BG(source=self.img["00 src"]) #self.img["10 diff"]
         #-------------------
@@ -309,14 +322,22 @@ class BeeExtractionHandler:
         mean,std = cv2.meanStdDev(diff_blurred)
         print(mean,std)
         
-        labels=["image","BG","diff_blurred"]
-        imgs = [self.img["00 src"], self.img["bg"], diff_blurred]
-        mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff_TEST_inc")
+        #otsu testing
+        otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _,img_th_10 = cv2.threshold(diff_blurred, 10, 255, cv2.THRESH_BINARY)
+        
+        #hybrid threshold
+        th3 = max([10,int(0.9*otsu_threshold)])
+        _,img_th_hybrid = cv2.threshold(diff_blurred, th3, 255, cv2.THRESH_BINARY)
+        
+        imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu,img_th_10,img_th_hybrid]
+        labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold),"threshold 10","hybrid th {}".format(th3)]
+        mySIV = PHM.SimpleImageViewer((2,3),imgs,labels, "threshold_diff_TEST_inc")
         
         
         
         
-        return myHist
+        return myHist,otsu_threshold,diff_blurred
     # -------------------------------------------------------------------------
     
     
@@ -765,7 +786,7 @@ if __name__== "__main__":
     
     myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
     
-    myIFC = IHM.ImageFinderClass(myPath,maxFiles=100)
+    myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
     myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
         
     
@@ -773,7 +794,8 @@ if __name__== "__main__":
 
     #%%
     plt.close('all')
-    myhist=myBEH.threshold_diff_TEST_inc()
+    myhist,otsu_threshold,diff=myBEH.threshold_diff_TEST_inc(1)
+    print("otsu: ",otsu_threshold)
     
     thresholdval=0.75
     total = int(np.sum(myhist))
