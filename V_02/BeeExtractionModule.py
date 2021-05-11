@@ -33,7 +33,7 @@ gaus - thres - dilate
 """
 #%%
 
-version = "003" 
+version = "004" 
 
 
 #%% IMPORTS
