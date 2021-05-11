@@ -45,7 +45,7 @@ import matplotlib as mpl
 import pandas as pd
 import os
 
-from tqdm import tqdm #may not be used
+from tqdm import tqdm
 
 # Own Modules
 import ImageHandlerModule as IHM
@@ -76,10 +76,9 @@ class BeeExtractionHandler:
     mean_weight_alpha : : Float (0...1), optional
         The weight with which a new image is added to the 'average' of the \
         backgorund image. The default is 0.1.
-    gauss_reduce_kernel : : Integer, optional
-        Kernel Size for the (TODO)filter . The default is 41.
-    gauss_reduce_threshold : : Uint8, optional
-        Threshold value for threshold filter. The default is 160.
+    open_close_kernel_size : : INT, optional
+        The Kernel size for Opening/Closing the Threshold image for better
+        seperation and detection of blobs. The default is 7.
     min_pixel_area : : Number, optional
         The minimum pixel area (mind reduced_img_dim) which is required to \
         plausibly contain a bee. The default is 1000.
@@ -90,7 +89,7 @@ class BeeExtractionHandler:
     
     def __init__(self, ILObject, path_extracted="./extracted/", \
                  gauss_blurr_kernel=5, otsu_min_threshold=10, mean_weight_alpha=0.1, \
-                 gauss_reduce_kernel=41, gauss_reduce_threshold=160, \
+                 open_close_kernel_size = 7, \
                  min_pixel_area=1000, dilate_kernel_size=32):
         self.img_index = 0
         self.img = dict()
@@ -103,8 +102,8 @@ class BeeExtractionHandler:
         self.set_gauss_blurr_kernel(gauss_blurr_kernel)
         self.set_otsu_min_threshold(otsu_min_threshold)
         self.set_mean_weight_alpha(mean_weight_alpha)
-        self.set_gauss_reduce_kernel(gauss_reduce_kernel)
-        self.set_gauss_reduce_threshold(gauss_reduce_threshold)
+        self.set_open_close_kernel(open_close_kernel_size)
+        # self.set_gauss_reduce_threshold(gauss_reduce_threshold)
         self.set_min_pixel_area(min_pixel_area)
         self.set_dilate_kernel_size(dilate_kernel_size)
         
@@ -199,12 +198,18 @@ class BeeExtractionHandler:
         self.prop_mean_weight_alpha = float(mean_weight_alpha)
         pass
     
-    # TODO: Update if necessaray
-    def set_gauss_reduce_kernel(self, gauss_reduce_kernel):
+    # Done
+    def set_open_close_kernel(self, open_close_kernel_size):
+        """Creates a circular (elliptic) kernel based on the specified kernel 
+        size. Will convert to an odd number, if necessary."""
         # gauss kernel size must be an odd integer
-        temp = int(gauss_reduce_kernel)
+        temp = int(open_close_kernel_size)
+        
+        # make an odd number
         if (temp % 2) != 1: temp += 1
-        self.prop_gauss_reduce_kernel = (temp, temp)
+        
+        # create circular (elliptic) kernel
+        self.open_close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(temp,temp))
         pass
     
     # DONE
@@ -214,10 +219,10 @@ class BeeExtractionHandler:
         self.otsu_min_threshold = int(otsu_min_threshold)
         pass
     
-    # TODO: Update if necessaray
-    def set_gauss_reduce_threshold(self, gauss_reduce_threshold):
-        self.prop_gauss_reduce_threshold= int(gauss_reduce_threshold)
-        pass
+    # # TODO: Update if necessaray
+    # def set_gauss_reduce_threshold(self, gauss_reduce_threshold):
+    #     self.prop_gauss_reduce_threshold= int(gauss_reduce_threshold)
+    #     pass
     
     # TODO: Update if necessaray
     def set_min_pixel_area(self, min_pixel_area):
@@ -346,7 +351,7 @@ class BeeExtractionHandler:
     
     
     # TODO: Update if necessaray
-    def gauss_blurr_reduce(self, source, DEBUG=False):
+    def gauss_blurr_reduce_OLDBACKUP(self, source, DEBUG=False):
         """Performs a gaussian blurr on the threshold image (source). 
         
         After blurring, another threshold is performed (TH somewhere above 128). 
@@ -363,7 +368,28 @@ class BeeExtractionHandler:
         # for safety reasons, we also apply "opening" = dilate(erode(img)) - to avoi 1px spots
         img_opened = cv2.morphologyEx( img_reduced, cv2.MORPH_OPEN, np.ones((5,5),np.uint8) )
         
+        if DEBUG:
+            imgs = [self.img["00 src"],self.img["20 threshold"], thres_blurred, img_reduced, img_opened]
+            labels = ["src", "threshold", "blurred", "reduced", "opened"]
+            mySIV = PHM.SimpleImageViewer((2,3), imgs)
         
+        pass
+    # TODO: Update if necessaray
+    def reduce_open_close(self, source, DEBUG=False):
+        """Performs Closing (remove black holes) and then Opening 
+        (remove lone white pixels) on the Threshold image (source).
+        
+        Will plot results, if DEBUG=True."""
+        img_closed = cv2.morphologyEx( source, cv2.MORPH_CLOSE, self.open_close_kernel )
+        
+        img_opened = cv2.morphologyEx( img_closed, cv2.MORPH_OPEN, self.open_close_kernel )
+        
+        self.img["30 reduced"] = img_opened
+        
+        if DEBUG:
+            imgs = [self.img["00 src"],self.img["20 threshold"], img_closed, img_opened]
+            labels = ["src", "threshold", "img_closed", "img_opened"]
+            mySIV = PHM.SimpleImageViewer((2,2), imgs, labels)
         pass
     
     # TODO: Update if necessaray
@@ -572,13 +598,7 @@ class BeeExtractionHandler:
     def iterate(self, times = 1):
         """
         This function will perform ALL extraction steps for the set number \
-        of images. (incremental increase from the current index)
-
-        Parameters
-        ----------
-        times : : INTEGER, optional
-            How many images shall be used for extraction. The default is 1.
-        """
+        of images. (incremental increase from the current index) """
         assert times>0  # MUST be a number >= 1 !!!
         
         # try:
@@ -611,10 +631,13 @@ class BeeExtractionHandler:
             else:
             
                 # gaussian blurr
-                self.gauss_blurr_reduce(source=self.img_set_threshold)
+                self.reduce_open_close(source=self.img["20 threshold"], DEBUG=True) # => self.img["30 reduced"]
+                
+                raise Exception("DEBUG stop")
+                
                 
                 # selection and seperation
-                self.get_contours_reduced(source=self.img_set_reduced)
+                self.get_contours_reduced(source=self.img["30 reduced"])
                 
                 
                 self.extract_from_contours(source_contours=self.cont_good, \
@@ -793,10 +816,7 @@ if __name__== "__main__":
     print("numpy.version = {}".format(np.__version__))
     print("matplotlib.version = {}".format(mpl.__version__))
     print("pandas.version = {}".format(pd.__version__))
-    try:
-        print("pyqt5.version = {}".format(PyQt5.QtCore.QT_VERSION_STR))
-    except:
-        pass
+    
     
     # Window Cleanup
     cv2.destroyAllWindows()
@@ -813,9 +833,7 @@ if __name__== "__main__":
 
     #%%
     plt.close('all')
-
-                 
         
     
-    # myBEH.iterate(times=8)
+    myBEH.iterate(1)
     
