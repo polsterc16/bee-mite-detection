@@ -10,34 +10,41 @@ https://build-system.fman.io/pyqt5-tutorial
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import cv2
 
-
-
-"""First, we tell Python to load PyQt via the import statement: """
 from PyQt5 import QtWidgets as qtw
+from PyQt5 import QtGui as qtg
 from PyQt5 import QtCore as qtc
+import sys
+
+myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+myFile1 = "0_0_image0000_0.jpg"
+myFile2 = "0_0_image0002_0.jpg"
+myFile3 = "0_0_image0003_0.jpg"
+myFile4 = "0_0_image0004_0.jpg"
+path = os.path.join(myPath,myFile1)
+
+version = "002"
+
+#%%
+
+class MainWindow(qtw.QWidget):
+    def __init__(self):
+        """MainWindow constructor"""
+        super().__init__()
+        # Main UI code goes here
+        
+        
+        # End main UI code
+        self.show()
 
 
-"""Next, we create a QApplication with the command: """
-app = qtw.QApplication([])"
-"""This is a requirement of Qt: Every GUI app must have exactly one instance \
-of QApplication. Many parts of Qt don't work until you have executed the \
-above line. You will therefore need it in virtually every (Py)Qt app you write.
-
-The brackets [] in the above line represent the command line arguments \
-passed to the application. Because our app doesn't use any parameters, \
-we leave the brackets empty."""
-
-
-"""Now, to actually see something, we create a simple label:""" 
-label = qtw.QLabel("hellow world")
-
-
-"""Then, we tell Qt to show the label on the screen: """
-label.show()
-
-
-"""The last step is to hand control over to Qt and ask it to \
-    "run the application until the user closes it". \
-    This is done via the command: """
-app.exec_()
+#%%
+if __name__ == '__main__':
+    app = qtw.QApplication(sys.argv)
+    mw = MainWindow()
+    sys.exit(app.exec())
+    
+#%%
+a=cv2.imread(path)
