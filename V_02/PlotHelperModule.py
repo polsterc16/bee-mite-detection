@@ -53,7 +53,7 @@ class SimpleImageViewer:
         if windowname==None:
             self.w_name = str(now)
         else:
-            self.w_name = str(windowname) + " " + str(now)
+            self.w_name = str(windowname) #+ " " + str(now)
         
         
         #show the window
@@ -99,7 +99,13 @@ class SimpleImageViewer:
                     self.ax[idx].title.set_text( str(self.label_list[i]) )
             except:
                 raise Exception('Problem at index {} when plotting imgs'.format(str(idx)))
+        
+        
+        thismanager = plt.get_current_fig_manager()
+        thismanager.window.setGeometry(100,100,640, 545)
+        plt.show()
         pass
+    
     
     
     
