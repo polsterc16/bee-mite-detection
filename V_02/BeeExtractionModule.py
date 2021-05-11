@@ -202,7 +202,7 @@ class BeeExtractionHandler:
     def set_open_close_kernel(self, open_close_kernel_size):
         """Creates a circular (elliptic) kernel based on the specified kernel 
         size. Will convert to an odd number, if necessary."""
-        # gauss kernel size must be an odd integer
+        #  kernel size must be an odd integer
         temp = int(open_close_kernel_size)
         
         # make an odd number
@@ -245,26 +245,28 @@ class BeeExtractionHandler:
     #     self.img_set_median = cv2.medianBlur(source, self.prop_median_filter_size)
     #     pass
     
-    # TODO: Update if necessaray
+    # Done
     def difference_from_BG(self, source):
         """img_set_diff"""
         # self.img_set_diff = np.int16(self.img_set_mean) - np.int16(self.img_set_resize)
         self.img["10 diff"] = np.int16(self.img["bg"]) - np.int16(source)
         
         """Due to the bees being dark (lower values) compared to the light 
-        background (higher values, we must subtract the current image from 
+        background (higher values), we must subtract the current image from 
         the BG, to get positive values for the position of new bees.
         (and negative values for the positions were bees have left).
-        (the negative values will be ignored lateron)"""
+        (the negative values will be ignored later on)"""
         pass
     
-    # TODO: Update if necessaray
-    def threshold_diff(self, source):
+    # Done
+    def threshold_diff(self, source, DEBUG=False):
         """Performs gaussian blurr on difference image (source).
         
-        Thresholds the difference image (source) with OTSU algorithm. 
-        If the OTSU threshold is below the min_th_value, then the output image 
-        MUST be viewed as 'empty'."""
+        Thresholds the blurred difference image with OTSU algorithm. 
+        (If the OTSU threshold is below the min_th_value, then the output image 
+        MUST be viewed as 'empty'.)
+        
+        I DEBUG is True, then the results will be shown"""
         
         # 10 : cut off negative values
         # This ignores artefacts from bees leaving the image (which would be negative)
@@ -280,6 +282,12 @@ class BeeExtractionHandler:
         otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         self.img["20 threshold"] = img_otsu
+        
+        
+        if DEBUG:
+            imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu]
+            labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold)]
+            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff")
         
         return otsu_threshold
     
@@ -344,37 +352,11 @@ class BeeExtractionHandler:
         mySIV = PHM.SimpleImageViewer((2,3),imgs,labels, "threshold_diff_TEST_inc")
         
         
-        
-        
         return myHist,otsu_threshold,diff_blurred
     # -------------------------------------------------------------------------
     
     
-    # TODO: Update if necessaray
-    def gauss_blurr_reduce_OLDBACKUP(self, source, DEBUG=False):
-        """Performs a gaussian blurr on the threshold image (source). 
-        
-        After blurring, another threshold is performed (TH somewhere above 128). 
-        This shall reconnect legs/wings/antenna back to the body, that may only 
-        be separate blibs in the image.
-        
-        Afterwards, an OPEN operation is performed, to get rid of smaller 
-        pixel artefacts."""
-        thres_blurred = cv2.GaussianBlur(source, self.prop_gauss_reduce_kernel, 0 ) # blurr the images
-        _,img_reduced = \
-            cv2.threshold(thres_blurred, self.prop_gauss_reduce_threshold, 255, \
-                          cv2.THRESH_BINARY)
-        
-        # for safety reasons, we also apply "opening" = dilate(erode(img)) - to avoi 1px spots
-        img_opened = cv2.morphologyEx( img_reduced, cv2.MORPH_OPEN, np.ones((5,5),np.uint8) )
-        
-        if DEBUG:
-            imgs = [self.img["00 src"],self.img["20 threshold"], thres_blurred, img_reduced, img_opened]
-            labels = ["src", "threshold", "blurred", "reduced", "opened"]
-            mySIV = PHM.SimpleImageViewer((2,3), imgs)
-        
-        pass
-    # TODO: Update if necessaray
+    # Done
     def reduce_open_close(self, source, DEBUG=False):
         """Performs Closing (remove black holes) and then Opening 
         (remove lone white pixels) on the Threshold image (source).
@@ -392,29 +374,32 @@ class BeeExtractionHandler:
             mySIV = PHM.SimpleImageViewer((2,2), imgs, labels)
         pass
     
-    # TODO: Update if necessaray
-    def get_contours_reduced(self, source):
-        img = source
+    # Done
+    def get_contours_reduced(self, img):
+        """Detects ONLY the contours found in the reduced threshold image"""
         _,contours, _ = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        self.cont_reduced = contours
         
-        self.cont_good=[]
-        # go through contours - throw all small ones out - remove all black islands
+        # check all the contours
+        self.contours=[]
+
         for c in self.cont_reduced:
+            # Check for area size - throw out if too small
             area = int( cv2.contourArea(c) )    # get area of contour
             if area < self.prop_min_pixel_area: 
                 continue    # skip, if area is too small
             
+            
+            # create a mask based on current contour
             mask = np.zeros(source.shape, np.uint8)
             cv2.drawContours(mask, c, -1, 255, -1)
             
-            # get avg color in source img, that is in the contour area
+            # get avg color in source img, that is in the contour area - throw out, if too dark (black hole)
             mean = cv2.mean(source, mask=mask)
             if mean[0] <= 127: 
                 continue    # skip, if the avg color is too low (sign of an encaspulated black area)
             
             # if all checks are ok, then save as "good" contour
-            self.cont_good.append(c)
+            self.contours.append(c)
             continue
         pass
     
