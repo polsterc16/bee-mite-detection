@@ -54,6 +54,27 @@ import PlotHelperModule as PHM
 
 # %% CLASS DEFINES
 
+class ParentImageClass:
+    def __init__(self,ILO,index):
+        self._ILO = ILO
+        self._index = index
+        
+        self._path = self._ILO._IFC_path
+        
+        # deepcopy of image
+        self._img = self._ILO.get_img(self._index).copy()
+        temp = self._img.shape
+        self._dim = (temp[1],temp[0])
+        # deepcopy of image (original)
+        self._orig_img = self._ILO.get_img_orig(self._index).copy()
+        temp = self._orig_img.shape
+        self._orig_dim = (temp[1],temp[0])
+        
+        # init some child objects/vars
+        self.bee_cnt = None
+        self.bee_dict=dict()
+        
+        pass
 
 
 class BeeExtractionHandler:
@@ -815,7 +836,7 @@ if __name__== "__main__":
     
     myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
     myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
-        
+    
     
     myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
 
