@@ -12,6 +12,7 @@ VERSION: 002
 import os, glob
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 
 #%%
@@ -32,7 +33,7 @@ class ImageFinderClass:
 
     """
     
-    def __init__(self, filePathString, acceptedExtensionList=("jpg",),maxFiles=0, DebugPrint=False):
+    def __init__(self, filePathString, acceptedExtensionList=("jpg",),maxFiles=0, subDir=True, DebugPrint=False):
         # Ensure correct parameter type
         assert type(maxFiles) == int;
         
@@ -43,7 +44,11 @@ class ImageFinderClass:
         
         self.set_dir_path(filePathString, DebugPrint)
         self.set_ext_list(acceptedExtensionList, DebugPrint)
-        self.find_extension_files(maxFiles, DebugPrint)
+        
+        if subDir:
+            self.find_extension_files_subdir(maxFiles, DebugPrint)
+        else:
+            self.find_extension_files(maxFiles, DebugPrint)
         
         if DebugPrint: print("### Init complete.")
         pass
@@ -119,6 +124,41 @@ class ImageFinderClass:
             
             for maskedFile in glob.glob(pathmask):
                 self.file_list.append( os.path.basename(maskedFile) )
+                # Stop, if we have the desired number of files
+                if (maxFiles>0 and len(self.file_list)>=maxFiles): break
+            
+            # Stop, if we have the desired number of files
+            if (maxFiles>0 and len(self.file_list)>=maxFiles): break
+        
+        # Check, if we have more than 0 files
+        if len(self.file_list) == 0:
+            raise Exception("No files for specified extensions found!")
+        
+        self.size = len(self.file_list)
+        
+        if DebugPrint: print("# Number of files in list: "+str(self.size))
+        pass
+    
+    
+    def find_extension_files_subdir(self, maxFiles, DebugPrint=False):
+        """
+        This function generates a list of all files with matching file extension \
+        (or up to the max number), that can be found inside the defined directory.
+        """
+        if DebugPrint: print("## Function Call: find_extension_files")
+        
+        self.file_list = []
+        
+        # Iterate through all extensions
+        for extn in self.ext_list:
+            
+            # Make a pathmask for every extension
+            pathmask = os.path.join(self.dir_path, ("**/*." + extn) )
+            if DebugPrint: print("# Current mask extension: "+str("*." + extn))
+            
+            for maskedFile in glob.glob(pathmask,recursive=True):
+                self.file_list.append( os.path.relpath(maskedFile,self.dir_path) )
+                # self.file_list.append( maskedFile )
                 # Stop, if we have the desired number of files
                 if (maxFiles>0 and len(self.file_list)>=maxFiles): break
             
@@ -357,8 +397,252 @@ class ImageLoaderClass:
         return self._img
         pass
 
+#%%
 
+class ImagePreprocessingClass:
+    """
+    This Class and its functions serve a very SPECIFIC purpose! Do not use 
+    for anything else!
+    
+    It loads the original 4000x3000 jpg images, resizes them down to 400x300,
+    and then stores them on a new location on the D:// drive.
+    
+    It also changes the name format of the files, since the original was
+    not easy to sort by date.
+    
+    THIS IS NOT A GENERAL PURPOSE CLASS/FUNCTION!!!
+    
+    Parameters
+    ----------
+    IFO : : ImageFinderClass Object
+        IFC Object, that contains the source images to be processed.
+    dir_target : : STRING of directory
+        String to destination directory.
+    resize_dim : : TUPLE of two INTs, optional
+        New dimensions to resize the images to. The default is (400,300).
+    DANGER : : BOOL, optional
+        This flag exists purely to reemphasize, that this function should 
+        ONLY be used for a specific purpose! Set to TRUE if you know what 
+        you are doing. The default is False.
+    """
+    def __init__(self, IFO, dir_target, resize_dim=(400,300), DANGER=False):
+        if DANGER != True:
+            raise Exception("Do not use this function without knowing what you are doing!")
+        
+        self._set_base_IFC(IFO)
+        self._set_dir_target(dir_target)
+        self._set_dim(resize_dim)
+        
+        self.index=0
+        pass
+    
+    def _set_base_IFC(self, new_IFC):
+        # Ensure correct parameter type
+        assert type(new_IFC) == ImageFinderClass;
+        self._IFC = new_IFC
+        self._IFC_path = self._IFC.dir_path
+        self._IFC_list = self._IFC.file_list
+        self._size = self._IFC.size
+        pass
 
+    def _set_dir_target(self, fpath, DEBUG=False):
+        """
+        Checks if file path is valid. \
+        Store filepath if valid, throw exception otherwise.
+        """
+        if DEBUG: print("## Function Call: set_dir_target")
+        
+        # Checks if path is a directory
+        isDirectory = os.path.isdir(fpath)
+        # MEMO: dont forget about [os.path.join(path1, path2)] !!!
+        
+        # Stop object creation, if no valid file path is given
+        if isDirectory == False:
+            raise Exception("Requires a legal directory path!"); pass
+        # No else-branch should be required at this point, 
+        # since the exception should catch this.
+        
+        self.dir_target = fpath
+        if DEBUG: print("# Set path to: "+str(self.dir_path))
+        pass
+    
+    def _set_dim(self, dim):
+        """Sets the image dimension (w,h) to which all images shall be resized 
+        before they are processed. 
+        
+        Must be tuple/list of two integers."""
+        # Check if we are dealing with a list here
+        if type(dim) not in [list, tuple]:
+            raise Exception("Not a List or Tuple!")
+        
+        # Check if list is only ints
+        if not all(isinstance(x, int) for x in dim):
+            raise Exception("List must contain only two positive INTEGERS!")
+        
+        # Check if length of 2 elements
+        if not len(dim)==2:
+            raise Exception("List must contain only TWO positive integers!")
+        
+        # Check if positive values
+        if not all(x>0 for x in dim):
+            raise Exception("List must contain only two POSITIVE (> 0) integers!")
+        
+        self._scale_dim = tuple(dim)
+        pass
+    
+    
+    def _rearrange_name(self,name):
+        """Rearranges the old name system to the new one. e.g '01_8_2020\\12\\0_11_image0000_0.jpg'
+        
+        This EXPECTS the old name system. DO NOT USE IN ANY OTHER CASE!"""
+        n = name.split("\\")
+        
+        x_date = n[0]
+        xhh = int(n[1])
+        x_rest = n[2]
+        
+        x_date=x_date.split("_")
+        xYY=int(x_date[2])
+        xMM=int(x_date[1])
+        xDD=int(x_date[0])
+        date_str = "{:04d}{:02d}{:02d}".format(xYY,xMM,xDD)
+        
+        x_rest = x_rest.split("_")
+        xmm = int(x_rest[0])
+        xss = int(x_rest[1])
+        time_str = "{:02d}{:02d}{:02d}".format(xhh,xmm,xss)
+        
+        x_img = x_rest[2]
+        x_rest2 = x_rest[3].split(".")
+        
+        # yes, we turn it into a png of course!
+        name_str= "{}_{}_s.png".format(x_img,x_rest2[0])
+        
+        full_name = "{}_{}_{}".format(date_str,time_str,name_str)
+        return full_name
+    
+    
+    def _work_inc(self,times=1,error_max=10):
+        """
+        This will execute the (1) Reading of the original image, (2) Resizing 
+        to the specified target dimensions, (3) Storing of the image under a 
+        new nameformat (since the original one makes sorting more difficult).
+        
+        This function ALWAYs continues at the last index.
+
+        Parameters
+        ----------
+        times : : INT, optional
+            For how many images this processing shall be performed. 
+            The default is 1.
+        error_max : : INT, optional
+            The maximum value the errorcounter may reach, before the function 
+            is stopped. The default is 10.
+        """
+        assert times>0
+        error_cnt=0
+        
+        # check how many items are even remaining in the list
+        remaining_items = self._size - self.index
+        # if there are fewer items than the iteration variable (times) requests,
+        #   we iterate only for the remaining number of items!
+        times = min([times, remaining_items])
+        
+        # if only 1 operation is performed, we do NOT use the tqdm progress bar
+        if times==1:
+            # Check if self.index is possible
+            if self.index not in range(self._size):
+                raise Exception("Index ({}) out of bounds (length={})".format(self.index,self._size))
+            
+            # determine file name
+            f_name = self._IFC_list[self.index]
+            newname = self._rearrange_name(f_name)
+            
+            # get path to currently indexed image (use os.path.join!)
+            f_path = os.path.join(self._IFC_path, f_name)
+            
+            # Load original image
+            img_0 = cv2.imread(f_path)
+            
+            # Scale to new dimensions
+            img_1 = cv2.resize(img_0, self._scale_dim, interpolation = cv2.INTER_AREA )
+            
+            save_path = os.path.join(self.dir_target, newname)
+            cv2.imwrite(save_path, img_1)
+            
+            self.index += 1
+            
+        # if >1 operation is performed, we DO use the tqdm progress bar
+        else:
+            # usage of loading bar indicator (#tqdm)
+            for i in tqdm(range(times), desc="Resizing images"):
+                # Check if self.index is possible
+                if self.index not in range(self._size):
+                    raise Exception("Index ({}) out of bounds (length={})".format(self.index,self._size))
+                
+                # determine file name
+                f_name = self._IFC_list[self.index]
+                newname = self._rearrange_name(f_name)
+                
+                # get path to currently indexed image (use os.path.join!)
+                f_path = os.path.join(self._IFC_path, f_name)
+                
+                # Load original image
+                img_0 = cv2.imread(f_path)
+                
+                #check if the image even loaded correctly
+                if type(img_0) == type(None):
+                    print("\nProcessing not possible for item at index {}. \n({})\n".format(self.index,f_path))
+                    error_cnt += 1  # increment the error_cnt
+                else:
+                    # Scale to new dimensions
+                    img_1 = cv2.resize(img_0, self._scale_dim, interpolation = cv2.INTER_AREA )
+                    
+                    save_path = os.path.join(self.dir_target, newname)
+                    cv2.imwrite(save_path, img_1)
+                    if error_cnt > 0: error_cnt -= 1  # decrement the error_cnt
+                
+                #if error count too high, we stop the function!
+                if error_cnt >= error_max:
+                    print("\nError Counter has reached maximum ({}) at index {}.".format(error_max,self.index))
+                    print("({}).".format(f_path))
+                    print("Stopping function.\n")
+                    return
+                self.index += 1
+        pass
+    
+    def work_from_inc(self,startindex=None,times=1,error_max=10):
+        """
+        This will execute the (1) Reading of the original image, (2) Resizing 
+        to the specified target dimensions, (3) Storing of the image under a 
+        new nameformat (since the original one makes sorting more difficult).
+        
+        This function will continue at the last index, if the 'startindex' is 
+        set to 'None'. Otherwise, it will begin at the specified 'startindex'.
+
+        Parameters
+        ----------
+        startindex : : INT (or None), optional
+            Defines where to start with processing the images. The default is None.
+        times : : INT, optional
+            For how many images this processing shall be performed. 
+            The default is 1.
+        error_max : : INT, optional
+            The maximum value the errorcounter may reach, before the function 
+            is stopped. The default is 10.
+        """
+        assert times >= 1
+        
+        if startindex==None:
+            #no change
+            self.index =  self.index
+        else:
+            # startindex MUST be positive
+            assert startindex >= 0
+            self.index = startindex
+            
+        self._work_inc(times,error_max)
+        pass
 
 
 
@@ -367,16 +651,19 @@ class ImageLoaderClass:
 
 if __name__ == "__main__":
     # main function test code area.
-    TEST = 2
+    TEST = 3
     
     
     if(TEST==1):
-        myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+        myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images"
         
-        myIFC = ImageFinderClass(myPath,maxFiles=20,DebugPrint=True)
+        myIFC = ImageFinderClass(myPath,maxFiles=10,DebugPrint=False)
         # myIHC = ImageFinderClass(myPath,"png",maxFiles=20,DebugPrint=True)
         
-        print(myIFC.file_list)
+        # print(myIFC.file_list)
+        # with open("ifc_img_names.txt","w") as f:
+        #     for item in myIFC.file_list:
+        #         f.write(str(item)+"\n")
     
     
     if(TEST==2):
@@ -388,5 +675,13 @@ if __name__ == "__main__":
         im = myILC.get_img(1)
         cv2.imshow("im",im)
         
+    if(TEST==3):
+        path_src = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images"
+        path_dst = "D:\\ECM_PROJECT\\bee_images_small"
+        
+        myIFC = ImageFinderClass(path_src,maxFiles=0)
+        myIPC = ImagePreprocessingClass(myIFC, path_dst, DANGER=True)
+        
+        myIPC.work_from_inc(12400,4000)
         
         
