@@ -19,7 +19,7 @@ img = cv2.resize(img, (200,100), interpolation = cv2.INTER_AREA )
 
 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 img[:,:]=0
-cv2.circle(img, (50,50), 25, 255, 10)
+cv2.rectangle(img, (25,25), (75,50), 255, -1)
 cv2.circle(img, (150,50), 15, 255, -1)
 cv2.imshow("win",img)
 
@@ -33,4 +33,21 @@ cv2.drawContours(img3, contours, -1, (0,127,255), 3)
 cv2.imshow("win2",img3)
 
 c0=contours[0]
-c0=c0[:,0,:]
+c1=contours[1]
+# c0=c0[:,0,:]
+#%%
+# zeichne contouren, die über das bild hinausgehen
+
+
+c2 = [[[30, -10]],
+
+       [[30, 50]],
+
+       [[60, 300]],
+
+       [[60, 25]]]
+
+c2 = np.array(c2)
+
+cv2.drawContours(img3, [c2], -1, (255,0,120), 3)
+cv2.imshow("win2",img3)
