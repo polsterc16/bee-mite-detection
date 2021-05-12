@@ -55,9 +55,11 @@ import PlotHelperModule as PHM
 # %% CLASS DEFINES
 
 class ParentImageClass:
-    def __init__(self,ILO,index):
+    def __init__(self,ILO,index:int, focus_size=(128,128)):
         self._ILO = ILO
         self._index = index
+        self.set_focus_img_size(focus_size)
+        
         
         self._path = self._ILO._IFC_path
         
@@ -75,8 +77,122 @@ class ParentImageClass:
         self.bee_dict=dict()
         
         pass
+    
+    def set_focus_img_size(self,dim):
+        assert type(dim) in [list,tuple]            # ensure, that it is a tuple
+        assert len(dim) == 2                        # ensure, that it has 2 items
+        assert all( [type(v)==int for v in dim] )   # ensure, that it only contains ints
+        
+        #check if focus size is smaller than parent image size
+        fw,fh = dim # focus dimensions
+        pw,ph = self._ILO._scale_dim # parent dimensions
+        assert fw <= pw
+        assert fh <= ph
+        
+        self._focus_size = dim
+        pass
+        
 
+class BeeFocusImage:
+    def __init__(self, parent:ParentImageClass, bg_gauss_kernel=11):
+        self.parent = parent
+        self.focus_size = self.parent.focus_size
+        
+        self.set_bg_gauss_kernel_size(bg_gauss_kernel)
+        
+        
+        
+        pass
+    
+    def set_bg_gauss_kernel_size(self, kernel_size=3):
+        """Creates the tuple for the gaussian blurr of the BG image. Will 
+        convert to an odd number, if necessary. (minimum size = 3)"""
+        temp = int(kernel_size)
+        if (temp % 2) != 1: temp += 1 # make an odd number
+        if temp < 3: temp = 3
+        self.bg_gauss_kernel = (temp,temp)
+        pass
+    
+    def set_contour(self,contour):
+        assert type(contour) == np.ndarray # ensure, that is is a contour
+        assert len(contour.shape) == 3
+        self.contour = contour
+        
+        M = cv2.moments(self.contour)
+        self.area = M["m00"]
+        cx = int(M['m10']/M['m00'])
+        cy = int(M['m01']/M['m00'])
+        self.pos_center = (cx,cy)
+        pass
+    
+    def fetch_focus_img(self):
+        fw,fh = self.focus_size                 # w,h of focus img
+        pw,ph = self.parent._ILO._scale_dim     # w,h of parent img
+        cx,cy = self.pos_center                 # center position of contour
+        
+        # get theoretical anchor points, based on cx,cy alone
+        a1 = [cx-fw//2, cy-fh//2] # top left
+        a2 = [a1[0]+fw, a1[1]+fh] # bottom right
+        
+        conflict = 0
+        # check if conflict LEFT
+        if a1[0] < 0:
+            conflict +=1        # inc counter
+            a1[0] = 0           # set left anchor to left img border
+            a2[0] = a1[0] + fw  # anjust right anchor
+        # check if conflict TOP
+        if a1[1] < 0:
+            conflict +=1        # inc counter
+            a1[1] = 0           # set top anchor to top img border
+            a2[1] = a1[1] + fh  # anjust bottom anchor
+        # check if conflict RIGHT
+        if a1[0] > pw:
+            conflict +=1        # inc counter
+            a2[0] = pw          # set right anchor to right img border
+            a1[0] = a2[0] - fw  # anjust left anchor
+        # check if conflict BOTTOM
+        if a1[1] > ph:
+            conflict +=1        # inc counter
+            a2[1] = ph          # set bottom anchor to bottom img border
+            a1[1] = a2[1] - fh  # anjust top anchor
+        
+        if conflict > 2:
+            raise Exception("conflict={}. This should not happen! The focus image cannot have a conflict with more than 2 borders!".format(conflict))
+        
+        # now, that we have the anchor points, we can fetch the ROI
+        self.pos_anchor = tuple(a1)
+        # ROI = img[row1:row2, col1:col2] = img[y1:y2, x1:x2]
+        self.img_focus = self.parent.img[a1[1]:a2[1], a1[0]:a2[0]].copy()
+        
+        # get the offset for the contour line (for use in the focus image)
+        ax,ay = self.pos_anchor
+        self.contour_offset =  np.array([ [[v[0][0]-ax,v[0][1]-yy]] for v in self.contour ])
+        
+        pass
+    # def blend_imgs(self):
+    #     assert type(self._focus_img) == np.ndarray # just check, if the imgs have already been set
+        
+    #     bg_blurr = cv2.GaussianBlur(self._focus_img, self.bg_gauss_kernel) # preparing the bg image
+        
+    #     focus_shape = self._focus_img.shape
+    #     focus_h = focus_shape[0]
+    #     focus_w = focus_shape[1]
+    #     bg_shape = self._bg_img.shape
+    #     bg_h = bg_shape[0]
+    #     bg_w = bg_shape[1]
+    #     dx = self._focus_anchor[0] - self._bg_anchor[0]
+    #     dy = self._focus_anchor[1] - self._bg_anchor[1]
+        
+    #     # make a reference to the region in the blurred BG, where we will insert the focus image
+    #     img_roi = bg_blurr[dy:dy+focus_h, dx:dx+focus_w]
+    #     # Now create a mask of the focus and create its inverse mask also
+    #     img2gray = cv.cvtColor(img2,cv.COLOR_BGR2GRAY)
+    #     ret, mask = cv.threshold(img2gray, 10, 255, cv.THRESH_BINARY)
+    #     mask_inv = cv.bitwise_not(mask)
+        
+    #     pass
 
+#%%
 class BeeExtractionHandler:
     """
     Handles the extraction of images from a list of images (as defined in \
