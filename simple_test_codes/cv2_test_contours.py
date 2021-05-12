@@ -36,18 +36,54 @@ c0=contours[0]
 c1=contours[1]
 # c0=c0[:,0,:]
 #%%
-# zeichne contouren, die über das bild hinausgehen
+# zeichne contouren, die über das bild hinausgehen (es muss mindestens ein punkt innerhalb sein)
 
 
-c2 = [[[30, -10]],
+c2 = [[[-10, -10]],
 
-       [[30, 50]],
+       [[30, -10]],
 
+       [[30, 10]],
+       [[60, 10]],
        [[60, 300]],
 
-       [[60, 25]]]
+       [[60, 300]]]
 
 c2 = np.array(c2)
 
-cv2.drawContours(img3, [c2], -1, (255,0,120), 3)
+#cv2.drawContours(img3, [c2], -1, (255,0,120), -1)
 cv2.imshow("win2",img3)
+
+#%%
+# testen, wie man am besten einen offset in die contour reinbringt
+cx=-20
+cy=-10
+
+    
+c_off = np.array([ [[v[0][0]-cx,v[0][1]-cy]] for v in c1 ])
+print(c1)
+print(c_off)
+
+
+cv2.drawContours(img3, [c_off], -1, (255,255,0), 1)
+cv2.imshow("win2",img3)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
