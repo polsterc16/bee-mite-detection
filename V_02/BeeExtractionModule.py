@@ -54,6 +54,8 @@ import PlotHelperModule as PHM
 
 # %% CLASS DEFINES
 
+
+
 class BeeExtractionHandler:
     """
     Handles the extraction of images from a list of images (as defined in \
@@ -808,7 +810,8 @@ if __name__== "__main__":
     plt.close('all')
     # %%
     
-    myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+    # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+    myPath = "D:\\ECM_PROJECT\\bee_images_small"
     
     myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
     myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
