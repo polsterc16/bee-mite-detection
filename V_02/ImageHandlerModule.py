@@ -178,8 +178,8 @@ class ImageFinderClass:
 
 class ImageLoaderClass:
     """
-    Creates an 'ImageLoaderClass' object.
-    Can be used to automatically load, grayscale and resize images as defines by an 'ImageFinderClass' object.
+    Creates an 'ImageLoaderClass' object. Can be used to automatically load, 
+    grayscale and resize images as defines by an 'ImageFinderClass' object.
 
     Parameters
     ----------
@@ -187,26 +187,28 @@ class ImageLoaderClass:
         The 'ImageFinderClass' Object defines which images can be loaded.
     grayscale_en : : BOOL, optional
         Defines if the loaded image will be converted to grayscale. The default is True.
-    new_dim : : TUPLE(INT,INT), optional
-        This tuple defines to which dimensions the image shall be resized (w,h). \
+    dim : : TUPLE(INT,INT), optional
+        This tuple defines to which dimensions (w,h) the image either already 
+        has or shall be resized to. (This also defines the mask image size!!!) 
         The default is (400,300).
+    resize_en : : BOOL, optional
+        Defines if the loaded image will be resized to the specified dimensions 
+        or if they are ALL already of that size. The default is False.
     mask_rel : : TUPLE(FLOAT,FLOAT,FLOAT,FLOAT), optional
-        Defines a rectangular mask in relative coordinates (x1,y1, x2, y2). \
-        All pixels outside the defined rectangle will be set to 0. \
-        (0,0) is topleft and (1,1) is bottomright in CV2 formating. \
+        Defines a rectangular mask in relative coordinates (x1,y1, x2, y2). 
+        All pixels outside the defined rectangle will be set to 0. 
+        (0,0) is topleft and (1,1) is bottomright in CV2 formating. 
         The default is (0.0, 0.0, 1.0, 1.0).
-
-    Returns
-    -------
-    None.
     """
         
-    def __init__(self, base_IFC, new_dim=(400,300), mask_rel=(0.0,0.0,1.0,1.0), grayscale_en=True):
+    def __init__(self, base_IFC, dim=(400,300), resize_en=False, 
+                 mask_rel=(0.0,0.0,1.0,1.0), grayscale_en=True):
         self._img = None
         
         self._set_base_IFC(base_IFC)
         self._set_grayscale(grayscale_en)
-        self._set_dim(new_dim)
+        self._set_dim(dim)
+        self._set_resize_en(resize_en)
         self._set_mask_rel(mask_rel)
         pass
     
@@ -259,6 +261,17 @@ class ImageLoaderClass:
             raise Exception("List must contain only two POSITIVE (> 0) integers!")
         
         self._scale_dim = tuple(dim)
+        pass
+    
+    def _set_resize_en(self, resize_en):
+        """
+        Defines whether the loaded image will be resized to the specified 
+        dimensions, or if they are all alread of this size.
+        """
+        # Ensure correct parameter type
+        if not type(resize_en) == bool:
+            raise Exception("resize_en must be a bool!")
+        self._resize_en = resize_en
         pass
     
     def _set_mask_rel(self,m):
@@ -355,36 +368,39 @@ class ImageLoaderClass:
         
         The image may be converted to grayscale. 
         
-        The image is resized to the defined target dimensions.
+        The image may be resized to the defined target dimensions.
         
         The mask is applied via a bitwise-AND to ignore regions that are \
         unimportant or that might cause interference.
         """
-        # Check if index is possible
+        # 10 : Check if index is possible
         if index not in range(self._size):
             raise Exception("Index ({}) out of bounds (length={})".format(index,self._size))
         
         
-        # get path to currently indexed image (use os.path.join!)
+        # 20 : get path to currently indexed image (use os.path.join!)
         f_path = os.path.join(self._IFC_path, self._IFC_list[index])
         
         
-        # Load original image
-        img_0 = cv2.imread(f_path, cv2.IMREAD_COLOR)
+        # 30 : Load original image
+        img_0 = cv2.imread(f_path)
         
         
-        if (self._grayscale):
-            # Get grayscale version
-            img_1 = cv2.cvtColor(img_0, cv2.COLOR_BGR2GRAY)
+        # 40 : check if resize is desired
+        if (self._resize_en):
+            img_1 = cv2.resize(img_0, self._scale_dim, interpolation = cv2.INTER_AREA )
         else:
             img_1 = img_0
         
         
-        # Scale to new dimensions
-        img_2 = cv2.resize(img_1, self._scale_dim, interpolation = cv2.INTER_AREA )
+        # 50 : check if conversion to grayscale is desired
+        if (self._grayscale):
+            img_2 = cv2.cvtColor(img_1, cv2.COLOR_BGR2GRAY)
+        else:
+            img_2 = img_1
         
         
-        # Apply Mask
+        # 60 : Apply Mask
         img_3 = cv2.bitwise_and( img_2, self._mask_img )
         
         self._img = img_3
@@ -395,7 +411,34 @@ class ImageLoaderClass:
         """Returns the loaded (and prepared) image of the defined index"""
         self._load_img(index)
         return self._img
+    
+    
+    def _load_img_orig(self, index):
+        """
+        Based on the list of images from the ImageFinderClass, this function 
+        loads the image of specified index in that list.
+        
+        No additional processing is performed.
+        """
+        # 10 : Check if index is possible
+        if index not in range(self._size):
+            raise Exception("Index ({}) out of bounds (length={})".format(index,self._size))
+        
+        # 20 : get path to currently indexed image (use os.path.join!)
+        f_path = os.path.join(self._IFC_path, self._IFC_list[index])
+        
+        # 30 : Load original image
+        img_0 = cv2.imread(f_path)
+        
+        self._img_orig = img_0
         pass
+    
+    
+    def get_img_orig(self, index):
+        """Returns the original image of the defined index"""
+        self._load_img_orig(index)
+        return self._img_orig
+        
 
 #%%
 
