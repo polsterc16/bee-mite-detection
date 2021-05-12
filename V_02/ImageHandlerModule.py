@@ -234,6 +234,9 @@ class ImageLoaderClass:
         self._grayscale = grayscale_en
         pass
     
+    def _get_grayscale(self):
+        return self._grayscale
+    
     def _set_dim(self, dim):
         """
         Sets the image dimension to which all images shall be resized \
@@ -263,6 +266,9 @@ class ImageLoaderClass:
         self._scale_dim = tuple(dim)
         pass
     
+    def _get_dim(self):
+        return self._scale_dim
+    
     def _set_resize_en(self, resize_en):
         """
         Defines whether the loaded image will be resized to the specified 
@@ -273,6 +279,9 @@ class ImageLoaderClass:
             raise Exception("resize_en must be a bool!")
         self._resize_en = resize_en
         pass
+    
+    def _get_resize_en(self):
+        return self._resize_en
     
     def _set_mask_rel(self,m):
         """
@@ -324,6 +333,9 @@ class ImageLoaderClass:
         
         self._gen_mask_abs()
         pass
+    
+    def _get_mask_rel(self):
+        return tuple(self._mask_rel)
     
     def _gen_mask_abs(self):
         """
