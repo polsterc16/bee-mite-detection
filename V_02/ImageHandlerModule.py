@@ -706,7 +706,7 @@ class ImagePreprocessingClass:
 
 if __name__ == "__main__":
     # main function test code area.
-    TEST = 3
+    TEST = 2
     
     
     if(TEST==1):
@@ -722,10 +722,11 @@ if __name__ == "__main__":
     
     
     if(TEST==2):
-        myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
-        myIFC = ImageFinderClass(myPath,maxFiles=100)
+        # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+        myPath = "D:\\ECM_PROJECT\\bee_images_small"
+        myIFC = ImageFinderClass(myPath,acceptedExtensionList=("png",),maxFiles=100)
         
-        myILC = ImageLoaderClass(myIFC, new_dim=(300,300),mask_rel=(0.1,0.2,.7,.99),grayscale_en=False)
+        myILC = ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.08,0,1,1),grayscale_en=True)
         
         im = myILC.get_img(1)
         cv2.imshow("im",im)
