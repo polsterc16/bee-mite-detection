@@ -153,6 +153,8 @@ class ParentImageClass:
                  DEBUG=False):
         self._ILO = ILO
         self._path_ILO = self._ILO._IFC_path
+        self._path_parent = self._ILO.f_path
+        self._fname_parent = self._ILO.f_name
         self._BG_ref = BGHandler
         self._index = index
         self.set_path_extracted(path_extr)
@@ -242,6 +244,7 @@ class ParentImageClass:
         
         pass
     
+    ### -----------------------------------------------------------------------
     
     def p00_fetch_src_gray(self, DEBUG=False):
         """fetch the first image (grayscale of original)"""
@@ -416,6 +419,62 @@ class ParentImageClass:
                                                   self._focus_bg_gauss_kernel_size,
                                                   self._focus_dilate_kernel_size))
         return len(self.child_list)
+    
+    def p60_save_imgs(self):
+        self.path_debug_img = np.NaN    # default assignment
+        # save the debug img, if exists (in really low quality, ofc)
+        if self.img["31 debug"] != None:
+            self.path_debug_img = os.path.join(self.path_extracted, "DEBUG/{:06d}_debug.jpg".format(self._index))
+            cv2.imwrite(self.path_debug_img, self.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,20])
+            pass
+        
+        self.path_bee_focus=[]
+        for bee in self.child_list:
+            f_name = "focus/{:06d}_{:02d}.png".format(self._index,bee.bee_ID)
+            path = os.path.join(self.path_extracted, f_name)
+            
+            self.path_bee_focus.append( (f_name, path) )
+            cv2.imwrite(path, bee.img_focus)
+            pass
+        pass
+    
+    def p70_prepare_panda(self):
+        # prepate parent
+        parent_series = { "src_index":  self._index,
+                          "src_fname":  self._fname_parent, 
+                          "src_fpath":  self._path_parent, 
+                          "debug_path": self.path_debug_img, 
+                          "contours_raw":   len(self.contour_list_raw),
+                          "contours_valid": len(self.contour_list_valid), 
+                          "children_names": [n for n,p in self.path_bee_focus]
+                          }
+        self.ds_parent = pd.Series(parent_series)
+        
+        # prepare child list
+        bee_series=[]
+        for i in range(len(self.child_list)):
+            bee = self.child_list[i]
+            fname,fpath = self.path_bee_focus[i]
+            ID = bee.bee_ID
+            pos_center = bee.get_coords_center_bee()
+            pos_anchor = bee.get_coords_anchor()
+            minAreaRect = bee.get_minAreaRect()
+            
+            bee_series = {"index": ID,
+                          "fname": fname,
+                          "fpath": fpath,
+                          "parent_index": self._index,
+                          "parent_fname": self._fname_parent,
+                          "parent_fpath": self._path_parent, 
+                          "debug_path": self.path_debug_img, 
+                          "pos_center": pos_center,
+                          "pos_anchor": pos_anchor,
+                          "minAreaRect": minAreaRect
+                          }
+            self.ds_child_list.append(bee_series)
+            pass
+        pass
+    
     
     ### -----------------------------------------------------------------------
     ### PARENT config FUNCTIONS
