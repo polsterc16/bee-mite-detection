@@ -73,8 +73,8 @@ class ParentImageClass:
         self._orig_dim = (temp[1],temp[0])
         
         # init some child objects/vars
-        self.bee_cnt = None
-        self.bee_dict=dict()
+        self.child_cnt = 0
+        self.child_list = []
         
         pass
     
@@ -215,30 +215,26 @@ class BeeFocusImage:
         # Put FG in BG
         self.img_focus = cv2.add(img_bg,img_fg)
         
+        # we also generate the dilated contours, since the parent might need them to draw
+        _,c_outer, _ = cv2.findContours(self.mask_dil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.contour_dilate = c_outer[0] #there SHOULD only be ONE outer contour
         pass
     
-    # def blend_imgs(self):
-    #     assert type(self._focus_img) == np.ndarray # just check, if the imgs have already been set
-        
-    #     bg_blurr = cv2.GaussianBlur(self._focus_img, self.bg_gauss_kernel) # preparing the bg image
-        
-    #     focus_shape = self._focus_img.shape
-    #     focus_h = focus_shape[0]
-    #     focus_w = focus_shape[1]
-    #     bg_shape = self._bg_img.shape
-    #     bg_h = bg_shape[0]
-    #     bg_w = bg_shape[1]
-    #     dx = self._focus_anchor[0] - self._bg_anchor[0]
-    #     dy = self._focus_anchor[1] - self._bg_anchor[1]
-        
-    #     # make a reference to the region in the blurred BG, where we will insert the focus image
-    #     img_roi = bg_blurr[dy:dy+focus_h, dx:dx+focus_w]
-    #     # Now create a mask of the focus and create its inverse mask also
-    #     img2gray = cv.cvtColor(img2,cv.COLOR_BGR2GRAY)
-    #     ret, mask = cv.threshold(img2gray, 10, 255, cv.THRESH_BINARY)
-    #     mask_inv = cv.bitwise_not(mask)
-        
-    #     pass
+    def get_coords_anchor(self):
+        return self.pos_anchor
+    
+    def get_coords_center_bee(self):
+        return self.pos_center_parent
+    
+    def get_contour_core(self):
+        return self.contour
+    
+    def get_contour_dilate(self):
+        return self.contour_dilate
+    
+    def get_img_focus(self):
+        return self.img_focus
+    
 
 #%%
 class BeeExtractionHandler:
@@ -1046,5 +1042,5 @@ if __name__== "__main__":
         
         cv2.imshow("6",cv2.resize(myBee.img_focus, (256,256), interpolation = cv2.INTER_AREA ))
         
-        
+        c_outer=myBee.get_contour_dilate()
         
