@@ -391,11 +391,12 @@ class ImageLoaderClass:
         
         
         # 20 : get path to currently indexed image (use os.path.join!)
-        f_path = os.path.join(self._IFC_path, self._IFC_list[index])
+        self.f_name = self._IFC_list[index]
+        self.f_path = os.path.join(self._IFC_path, self.f_name )
         
         
         # 30 : Load original image
-        img_0 = cv2.imread(f_path)
+        img_0 = cv2.imread(self.f_path)
         
         
         # 40 : check if resize is desired
@@ -442,10 +443,11 @@ class ImageLoaderClass:
             raise Exception("Index ({}) out of bounds (length={})".format(index,self._size))
         
         # 20 : get path to currently indexed image (use os.path.join!)
-        f_path = os.path.join(self._IFC_path, self._IFC_list[index])
+        self.f_name = self._IFC_list[index]
+        self.f_path = os.path.join(self._IFC_path, self.f_name )
         
         # 30 : Load original image
-        img_0 = cv2.imread(f_path)
+        img_0 = cv2.imread(self.f_path)
         
         self._img_orig = img_0
         pass
