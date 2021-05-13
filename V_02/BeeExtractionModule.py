@@ -94,11 +94,14 @@ class ParentImageClass:
         
 
 class BeeFocusImage:
-    def __init__(self, parent:ParentImageClass, bg_gauss_kernel=11):
+    def __init__(self, parent:ParentImageClass, bee_ID:int, bg_gauss_kernel_size=11, 
+                 dilate_kernel_size=32):
         self.parent = parent
-        self.focus_size = self.parent.focus_size
+        self.bee_ID = bee_ID
+        self.focus_size = self.parent._focus_size
         
-        self.set_bg_gauss_kernel_size(bg_gauss_kernel)
+        self.set_bg_gauss_kernel_size(bg_gauss_kernel_size)
+        self.set_dilate_kernel_size(dilate_kernel_size)
         
         
         
@@ -113,6 +116,21 @@ class BeeFocusImage:
         self.bg_gauss_kernel = (temp,temp)
         pass
     
+    def set_dilate_kernel_size(self, dilate_kernel_size):
+        """Creates a circular kernel of size 5 and determines the necessary 
+        number of iterations to have effectively the same kernel size.
+        
+        (Having a big kernel makes for slow operations. Performing several 
+        iterations instead is quicker and leads to nearly the same result)"""
+        # create circular kernel
+        ks = 5
+        self.dilate_k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(ks,ks))
+        # calculate the number of necessary iterations
+        self.dilate_iter = int( dilate_kernel_size/(ks-1) )
+        if self.dilate_iter < 1:
+            self.dilate_iter = 1
+        pass
+    
     def set_contour(self,contour):
         assert type(contour) == np.ndarray # ensure, that is is a contour
         assert len(contour.shape) == 3
@@ -122,13 +140,13 @@ class BeeFocusImage:
         self.area = M["m00"]
         cx = int(M['m10']/M['m00'])
         cy = int(M['m01']/M['m00'])
-        self.pos_center = (cx,cy)
+        self.pos_center_parent = (cx,cy)
         pass
     
     def fetch_focus_img(self):
         fw,fh = self.focus_size                 # w,h of focus img
         pw,ph = self.parent._ILO._scale_dim     # w,h of parent img
-        cx,cy = self.pos_center                 # center position of contour
+        cx,cy = self.pos_center_parent          # center position of contour
         
         # get theoretical anchor points, based on cx,cy alone
         a1 = [cx-fw//2, cy-fh//2] # top left
@@ -162,13 +180,43 @@ class BeeFocusImage:
         # now, that we have the anchor points, we can fetch the ROI
         self.pos_anchor = tuple(a1)
         # ROI = img[row1:row2, col1:col2] = img[y1:y2, x1:x2]
-        self.img_focus = self.parent.img[a1[1]:a2[1], a1[0]:a2[0]].copy()
+        self.img_roi = self.parent._orig_img[a1[1]:a2[1], a1[0]:a2[0]].copy()
         
-        # get the offset for the contour line (for use in the focus image)
+        # # get the offset for the contour line (for use in the focus image) based on our anchor position
+        # ax,ay = self.pos_anchor
+        # self.contour_roi =  np.array([ [[v[0][0]-ax,v[0][1]-ay]] for v in self.contour ])
+        
+        # get the offset center pos of the contour as well
         ax,ay = self.pos_anchor
-        self.contour_offset =  np.array([ [[v[0][0]-ax,v[0][1]-yy]] for v in self.contour ])
+        self.pos_center_roi = (self.pos_center_parent[0]-ax, self.pos_center_parent[1]-ay)
+        pass
+    
+    def generate_focus_img(self):
+        img_focus = self.img_roi.copy() # copy the ROI for use as the background
+        img_focus = cv2.GaussianBlur(img_focus, self.bg_gauss_kernel,0) # blurr the background
+        
+        ax,ay = self.pos_anchor
+        mask = np.zeros(np.flip(self.focus_size),dtype=np.uint8) # empty mask image
+        self.mask_core = cv2.drawContours(mask, [self.contour], -1, 255, -1, offset=(-ax,-ay)) #draw core roi
+        
+        # dilate the core ROI
+        self.mask_dil = cv2.dilate(self.mask_core, self.dilate_k, \
+                              iterations=self.dilate_iter)
+        # also perform "closing" to get rid of tiny holes in BLOB
+        self.mask_dil = cv2.morphologyEx(self.mask_dil, cv2.MORPH_CLOSE, np.ones((5,5),np.uint8) )
+        self.mask_inv = cv2.bitwise_not(self.mask_dil)
+        
+        # Now black-out the area of Bee in ROI
+        img_bg = cv2.bitwise_and(img_focus,img_focus, mask = self.mask_inv)
+        
+        # Take only region of logo from BG image.
+        img_fg = cv2.bitwise_and(self.img_roi,self.img_roi, mask = self.mask_dil)
+        
+        # Put FG in BG
+        self.img_focus = cv2.add(img_bg,img_fg)
         
         pass
+    
     # def blend_imgs(self):
     #     assert type(self._focus_img) == np.ndarray # just check, if the imgs have already been set
         
@@ -945,20 +993,58 @@ if __name__== "__main__":
     # Window Cleanup
     cv2.destroyAllWindows()
     plt.close('all')
+    
+    TEST = 2
     # %%
-    
-    # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
-    myPath = "D:\\ECM_PROJECT\\bee_images_small"
-    
-    myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
-    myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
-    
-    
-    myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
-
-    #%%
-    plt.close('all')
+    if TEST == 1:
+        # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
+        myPath = "D:\\ECM_PROJECT\\bee_images_small"
         
+        myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
+        myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
+        
+        
+        myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
     
-    myBEH.iterate(1)
+        plt.close('all')
+            
+        myBEH.iterate(1)
     
+    # %%
+    if TEST == 2:
+        cv2.destroyAllWindows()
+        myPath = "D:\\ECM_PROJECT\\bee_images_small"
+        
+        myIFC = IHM.ImageFinderClass(myPath,maxFiles=10,acceptedExtensionList=("png",))
+        myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
+        
+        myPar = ParentImageClass(myILC,0)
+        myBee = BeeFocusImage(myPar,0)
+        
+        c0 =  [[[140,120]],
+               [[130, 140]],
+               [[150, 210]],
+               [[160, 230]],
+               [[180, 220]],
+               [[175, 180]],
+               [[163, 136]]]
+        c0 = np.array(c0)
+        
+        
+        myBee.set_contour(c0)
+        myBee.fetch_focus_img()
+        
+        cv2.imshow("1",myPar._img)
+        cv2.imshow("2",myPar._orig_img)
+        cv2.imshow("3",cv2.resize(myBee.img_roi, (256,256), interpolation = cv2.INTER_AREA ))
+        
+        myBee.generate_focus_img()
+        
+        
+        cv2.imshow("4",cv2.resize(myBee.mask_core, (256,256), interpolation = cv2.INTER_AREA ))
+        cv2.imshow("5",cv2.resize(myBee.mask_dil, (256,256), interpolation = cv2.INTER_AREA ))
+        
+        cv2.imshow("6",cv2.resize(myBee.img_focus, (256,256), interpolation = cv2.INTER_AREA ))
+        
+        
+        
