@@ -137,7 +137,7 @@ class BackgroundImageClass:
             img_diff = np.int16(img) - np.int16(self.img_bg)
         return img_diff
     
-    
+#%%
 
 class ParentImageClass:
     def __init__(self, ILO: IHM.ImageLoaderClass, 
@@ -191,7 +191,7 @@ class ParentImageClass:
             if num_childen > 0:
                 imgs.append(self.img["25 reduced"])
                 labels.append("25 reduced")
-            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "ParentImageClass init {}".format(self._index))
+            mySIV = PHM.SimpleImageViewer(imgs,labels=labels, windowname="ParentImageClass init {}".format(self._index))
             pass
         
         
@@ -202,6 +202,10 @@ class ParentImageClass:
                                                  self._focus_dilate_kernel_size))
         pass
     
+    ### -----------------------------------------------------------------------
+    ### PROCESS FUNCTIONS
+    ### -----------------------------------------------------------------------
+    
     def process_1(self) -> int:
         """Get gray source image, get difference from bg, get otsu_th, get contours (unless otsu th is too low)"""
         self.p00_fetch_src_gray()   # get the grayscale source image
@@ -210,17 +214,176 @@ class ParentImageClass:
         
         
         self.contour_list = []          # make empty list for contours
+        self.contour_list_raw = []
         # --------------------------------------
         if otsu_th < self.parent_otsu_min_th:
             # This image has no bees
-            return len(self.contour_list)
+            return len(self.contour_list_raw)
         else:# ---------------------------------
             # This image has bees, maybe
             self.p25_openclose_threshold()
-            self.p30_contours_extract_check()
+            self.p30_contours_extract_raw()
             self.p31_contours_debug(DEBUG=True)
-            return len(self.contour_list)
+            return len(self.contour_list_raw)
         # --------------------------------------
+        pass
+    
+    
+    def p00_fetch_src_gray(self, DEBUG=False):
+        """fetch the first image (grayscale of original)"""
+        self.img["00 gray"] = self._ILO.get_img(self._index)
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"]]
+            labels=["00 gray"]
+            mySIV = PHM.SimpleImageViewer(imgs,None,labels, "p00_fetch_src_gray")
+        pass
+    
+    def p10_diff_from_bg(self, DEBUG=False):
+        """get the int16 difference image, convert it to uint8"""
+        diff_int16 = self._BG_ref.get_bg_diff(self.img["00 gray"])
+        
+        # This ignores artefacts from bees leaving the image (which would be negative)
+        _,diff_int16 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
+        
+        self.img["10 diff"] = np.uint8(diff_int16)
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"], self.img["10 diff"]]
+            labels=["00 gray","10 diff"]
+            mySIV = PHM.SimpleImageViewer(imgs,None,labels, "p10_diff_from_bg")
+        pass
+    
+    def p20_threshold_diff(self, DEBUG=False):
+        """Performs gaussian blurr on difference image.
+        
+        Thresholds the blurred difference image with OTSU algorithm. 
+        (If the OTSU threshold is below the min_th_value, then the output image 
+        MUST be viewed as 'empty'.)"""
+        
+        # perform gaussian blurr 
+        diff_blurred = cv2.GaussianBlur(self.img["10 diff"],self.parent_gauss_blurr_kernel,0)
+        
+        # perform threshold with OTSU, but be careful about its threshold value!
+        otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        self.img["20 threshold"] = img_otsu
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
+            labels=["00 gray","10 diff","otsu {}".format(otsu_threshold)]
+            mySIV = PHM.SimpleImageViewer(imgs,None,labels, "p20_threshold_diff")
+        
+        return otsu_threshold
+    
+    def p25_openclose_threshold(self, DEBUG=False):
+        """Performs Closing (remove black holes) and then Opening 
+        (remove lone white pixels) on the Threshold image (source)."""
+        img = self.img["20 threshold"]
+        # TODO: Test, if it works better with one additional erosion and dilation!
+        img = cv2.erode(img, self.parent_open_close_kernel)
+        
+        img_closed = cv2.morphologyEx( img, cv2.MORPH_CLOSE, 
+                                      kernel=self.parent_open_close_kernel, 
+                                      iterations=self.parent_open_close_iter )
+        
+        img_opened = cv2.morphologyEx( img_closed, cv2.MORPH_OPEN,  
+                                      kernel=self.parent_open_close_kernel, 
+                                      iterations=self.parent_open_close_iter )
+        
+        img = cv2.dilate(img_opened, self.parent_open_close_kernel)
+        
+        self.img["25 reduced"] = img
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"],self.img["20 threshold"], img_closed, img_opened]
+            labels = ["00 gray", "20 threshold", "img_closed", "img_opened"]
+            mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p25_openclose_threshold")
+        pass
+    
+    def p30_contours_extract_raw(self, DEBUG=False):
+        """Extract outermost contours to detect possible bees."""
+        # We are only interested in the outermost contours (EXTERNAL), 
+        #   because everything else does not make sense to handle (bees inside 
+        #   a different detected object)
+        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.contour_list_raw = contours
+        pass
+    
+    def p40_contours_check(self, DEBUG=False):
+        """Check the extracted contours if they are within min/max ares sizes."""
+        # We are only interested in the outermost contours (EXTERNAL), 
+        #   because everything else does not make sense to handle (bees inside 
+        #   a different detected object)
+        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.contour_list_raw = contours
+        
+        # calc all areas
+        self.contour_areas = [int( cv2.contourArea(c) ) for c in contours]
+        
+        # check all areas for their size
+        (min_a, max_a) = self.parent_area_min_max
+        checklist = [(a>=min_a and a<=max_a) for a in self.contour_areas]
+
+        # based on this True/False list, the final contour_list is filled
+        for i in range(len(self.contour_areas)):
+            if checklist[i]:
+                self.contour_list.append(contours[i])
+        pass
+    
+    def p31_contours_debug(self, DEBUG=False):
+        """Creates adebug image after getting the contours"""
+    
+        # fetch gray source image
+        img = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
+        img = np.float32( img ) #cast to float for weighted addition
+        
+        # make overlay for the weighted addition with the discovered blobs
+        img_overlay = np.zeros(img.shape,dtype=np.uint8)
+        img_overlay[:,:,2] = self.img["25 reduced"].copy() # write the reduced img to the red channel
+        # perform weighted add of overlay
+        cv2.accumulateWeighted(img_overlay, img, 0.333, mask=img_overlay[:,:,2])
+        img = np.uint8(img)
+        
+        # reset overlay
+        img_overlay = np.zeros(img.shape,dtype=np.uint8)
+        
+        info_list=[]    # get a list full of the center coordinates and the area
+        for c in self.contour_list_raw:
+            M = cv2.moments(c)
+            A = M["m00"]
+            cx = int(M['m10']/M['m00'])
+            cy = int(M['m01']/M['m00'])
+            info_list.append((cx,cy,A))
+        
+        #add text
+        fontFace = cv2.FONT_HERSHEY_PLAIN 
+        color=(255,127,0) #blue
+        size = 1
+        (tx,ty),_=cv2.getTextSize("A", fontFace, size, 2)
+        
+        a_min,a_max = self.parent_area_min_max
+        for i in range(len(info_list)):
+            cx,cy,A=info_list[i]
+            if A<a_min:     check = "-"
+            elif (A>a_max): check = "X"
+            else:           check = "+"
+            txt = "{}: {} {}".format( i, int(A), check)
+            # write index and area to top left
+            cv2.putText(img_overlay, txt, (1,(i+1)*(ty+1)), fontFace, size, (255,255,255)) #blue
+            # write index to center
+            cv2.putText(img_overlay, str(i), (cx,cy), fontFace, size, (0,255,255)) #yellow
+        img = cv2.bitwise_or(img, img_overlay) # hard burning of overly into img
+            
+        self.img["31 debug"] = img
+        # REEEEEEALLY low quality saving
+        # path = os.path.join(self.path_extracted, "DEBUG/{}_debug.jpg".format())
+        # cv2.imwrite("0.jpg",myPar.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,20])
+        
+        if DEBUG:
+            imgs = [self.img["31 debug"],]
+            labels = ["31 debug",]
+            mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p31_contours_debug",posX=900)
         pass
     
     ### -----------------------------------------------------------------------
@@ -317,157 +480,7 @@ class ParentImageClass:
         self._focus_dilate_kernel_size = dilate_kernel_size
         pass
     
-    ### -----------------------------------------------------------------------
-    ### PROCESS FUNCTIONS
-    ### -----------------------------------------------------------------------
-    def p00_fetch_src_gray(self, DEBUG=False):
-        """fetch the first image (grayscale of original)"""
-        self.img["00 gray"] = self._ILO.get_img(self._index)
-        
-        if DEBUG:
-            imgs = [self.img["00 gray"]]
-            labels=["00 gray"]
-            mySIV = PHM.SimpleImageViewer((1,2),imgs,labels, "p00_fetch_src_gray")
-        pass
-    
-    def p10_diff_from_bg(self, DEBUG=False):
-        """get the int16 difference image, convert it to uint8"""
-        diff_int16 = self._BG_ref.get_bg_diff(self.img["00 gray"])
-        
-        # This ignores artefacts from bees leaving the image (which would be negative)
-        _,diff_int16 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
-        
-        self.img["10 diff"] = np.uint8(diff_int16)
-        
-        if DEBUG:
-            imgs = [self.img["00 gray"], self.img["10 diff"]]
-            labels=["00 gray","10 diff"]
-            mySIV = PHM.SimpleImageViewer((1,2),imgs,labels, "p10_diff_from_bg")
-        pass
-    
-    def p20_threshold_diff(self, DEBUG=False):
-        """Performs gaussian blurr on difference image.
-        
-        Thresholds the blurred difference image with OTSU algorithm. 
-        (If the OTSU threshold is below the min_th_value, then the output image 
-        MUST be viewed as 'empty'.)"""
-        
-        # perform gaussian blurr 
-        diff_blurred = cv2.GaussianBlur(self.img["10 diff"],self.parent_gauss_blurr_kernel,0)
-        
-        # perform threshold with OTSU, but be careful about its threshold value!
-        otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        self.img["20 threshold"] = img_otsu
-        
-        if DEBUG:
-            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
-            labels=["00 gray","10 diff","otsu {}".format(otsu_threshold)]
-            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "p20_threshold_diff")
-        
-        return otsu_threshold
-    
-    def p25_openclose_threshold(self, DEBUG=False):
-        """Performs Closing (remove black holes) and then Opening 
-        (remove lone white pixels) on the Threshold image (source)."""
-        img = self.img["20 threshold"]
-        # TODO: Test, if it works better with one additional erosion and dilation!
-        img = cv2.erode(img, self.parent_open_close_kernel)
-        
-        img_closed = cv2.morphologyEx( img, cv2.MORPH_CLOSE, 
-                                      kernel=self.parent_open_close_kernel, 
-                                      iterations=self.parent_open_close_iter )
-        
-        img_opened = cv2.morphologyEx( img_closed, cv2.MORPH_OPEN,  
-                                      kernel=self.parent_open_close_kernel, 
-                                      iterations=self.parent_open_close_iter )
-        
-        img = cv2.dilate(img_opened, self.parent_open_close_kernel)
-        
-        self.img["25 reduced"] = img
-        
-        if DEBUG:
-            imgs = [self.img["00 gray"],self.img["20 threshold"], img_closed, img_opened]
-            labels = ["00 gray", "20 threshold", "img_closed", "img_opened"]
-            mySIV = PHM.SimpleImageViewer((2,2), imgs, labels, "p25_openclose_threshold")
-        pass
-    
-    def p30_contours_extract_check(self, DEBUG=False):
-        """Extract outermost contours to detect possible bees."""
-        # We are only interested in the outermost contours (EXTERNAL), 
-        #   because everything else does not make sense to handle (bees inside 
-        #   a different detected object)
-        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        self.contour_list_raw = contours
-        
-        # calc all areas
-        self.contour_areas = [int( cv2.contourArea(c) ) for c in contours]
-        
-        # check all areas for their size
-        (min_a, max_a) = self.parent_area_min_max
-        checklist = [(a>=min_a and a<=max_a) for a in self.contour_areas]
-
-        # based on this True/False list, the final contour_list is filled
-        for i in range(len(self.contour_areas)):
-            if checklist[i]:
-                self.contour_list.append(contours[i])
-        pass
-    
-    def p31_contours_debug(self, DEBUG=False):
-        """Creates adebug image after getting the contours"""
-    
-        # fetch gray source image
-        img = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
-        img = np.float32( img ) #cast to float for weighted addition
-        
-        # make overlay for the weighted addition with the discovered blobs
-        img_overlay = np.zeros(img.shape,dtype=np.uint8)
-        img_overlay[:,:,2] = self.img["25 reduced"].copy() # write the reduced img to the red channel
-        # perform weighted add of overlay
-        cv2.accumulateWeighted(img_overlay, img, 0.333, mask=img_overlay[:,:,2])
-        img = np.uint8(img)
-        
-        # reset overlay
-        img_overlay = np.zeros(img.shape,dtype=np.uint8)
-        
-        info_list=[]    # get a list full of the center coordinates and the area
-        for c in self.contour_list_raw:
-            M = cv2.moments(c)
-            A = M["m00"]
-            cx = int(M['m10']/M['m00'])
-            cy = int(M['m01']/M['m00'])
-            info_list.append((cx,cy,A))
-        
-        #add text
-        fontFace = cv2.FONT_HERSHEY_PLAIN 
-        color=(255,127,0) #blue
-        size = 1
-        (tx,ty),_=cv2.getTextSize("A", fontFace, size, 2)
-        
-        a_min,a_max = self.parent_area_min_max
-        for i in range(len(info_list)):
-            cx,cy,A=info_list[i]
-            if A<a_min:     check = "-"
-            elif (A>a_max): check = "X"
-            else:           check = "+"
-            txt = "{}: {} {}".format( i, int(A), check)
-            # write index and area to top left
-            cv2.putText(img_overlay, txt, (1,(i+1)*(ty+1)), fontFace, size, (255,255,255)) #blue
-            # write index to center
-            cv2.putText(img_overlay, str(i), (cx,cy), fontFace, size, (0,255,255)) #yellow
-        img = cv2.bitwise_or(img, img_overlay) # hard burning of overly into img
-            
-        self.img["31 debug"] = img
-        # REEEEEEALLY low quality saving
-        # path = os.path.join(self.path_extracted, "DEBUG/{}_debug.jpg".format())
-        # cv2.imwrite("0.jpg",myPar.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,20])
-        
-        if DEBUG:
-            imgs = [self.img["31 debug"],]
-            labels = ["31 debug",]
-            mySIV = PHM.SimpleImageViewer((1,1), imgs, labels, "p31_contours_debug",posX=900)
-        pass
-        
+#%%
 
 class BeeFocusImage:
     def __init__(self, parent: ParentImageClass, 
@@ -861,7 +874,7 @@ class BeeExtractionHandler:
         if DEBUG:
             imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu]
             labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold)]
-            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff")
+            mySIV = PHM.SimpleImageViewer(imgs, None,labels, "threshold_diff")
         
         return otsu_threshold
     
@@ -923,7 +936,7 @@ class BeeExtractionHandler:
         
         imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu,img_th_10,img_th_hybrid]
         labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold),"threshold 10","hybrid th {}".format(th3)]
-        mySIV = PHM.SimpleImageViewer((2,3),imgs,labels, "threshold_diff_TEST_inc")
+        mySIV = PHM.SimpleImageViewer(imgs, None,labels, "threshold_diff_TEST_inc")
         
         
         return myHist,otsu_threshold,diff_blurred
@@ -945,7 +958,7 @@ class BeeExtractionHandler:
         if DEBUG:
             imgs = [self.img["00 src"],self.img["20 threshold"], img_closed, img_opened]
             labels = ["src", "threshold", "img_closed", "img_opened"]
-            mySIV = PHM.SimpleImageViewer((2,2), imgs, labels)
+            mySIV = PHM.SimpleImageViewer(imgs, None, labels)
         pass
     
     # Done
@@ -1381,61 +1394,9 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 3
+    TEST = 1
     # %%
     if TEST == 1:
-        # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
-        myPath = "D:\\ECM_PROJECT\\bee_images_small"
-        
-        myIFC = IHM.ImageFinderClass(myPath,maxFiles=0)
-        myILC = IHM.ImageLoaderClass(myIFC, new_dim=(400,300),mask_rel=(0.1,0,1,1))
-        
-        
-        myBEH = BeeExtractionHandler(myILC,mean_weight_alpha=0.05)
-    
-        plt.close('all')
-            
-        myBEH.iterate(1)
-    
-    # %%
-    if TEST == 2:
-        cv2.destroyAllWindows()
-        myPath = "D:\\ECM_PROJECT\\bee_images_small"
-        
-        myIFC = IHM.ImageFinderClass(myPath,maxFiles=10,acceptedExtensionList=("png",))
-        myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
-        
-        myPar = ParentImageClass(myILC,0)
-        myBee = BeeFocusImage(myPar,0)
-        
-        c0 =  [[[140,120]],
-               [[130, 140]],
-               [[150, 210]],
-               [[160, 230]],
-               [[180, 220]],
-               [[175, 180]],
-               [[163, 136]]]
-        c0 = np.array(c0)
-        
-        
-        myBee.set_contour(c0)
-        myBee.fetch_roi_img()
-        
-        cv2.imshow("1",myPar._img)
-        cv2.imshow("2",myPar._orig_img)
-        cv2.imshow("3",cv2.resize(myBee.img_roi, (256,256), interpolation = cv2.INTER_AREA ))
-        
-        myBee.generate_focus_img()
-        
-        
-        cv2.imshow("4",cv2.resize(myBee.mask_core, (256,256), interpolation = cv2.INTER_AREA ))
-        cv2.imshow("5",cv2.resize(myBee.mask_dil, (256,256), interpolation = cv2.INTER_AREA ))
-        
-        cv2.imshow("6",cv2.resize(myBee.img_focus, (256,256), interpolation = cv2.INTER_AREA ))
-        
-        c_outer=myBee.get_contour_dilate()
-    #%%
-    if TEST==3:
         cv2.destroyAllWindows()
         plt.close('all')
         
