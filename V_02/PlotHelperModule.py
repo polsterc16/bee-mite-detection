@@ -27,7 +27,8 @@ class SimpleImageViewer:
         Label of the Window. The default is None.
     """
     
-    def __init__(self,grid,imgs,labels=None, windowname=None):
+    def __init__(self,grid,imgs,labels=None, windowname=None, 
+                 posX=100, posY=100, w=650, h=550):
         
         # enforce correct data types for grid
         assert type(grid) in [list, tuple]
@@ -35,6 +36,12 @@ class SimpleImageViewer:
         assert type(grid[1]) == int
         self.n_rows = grid[0]
         self.n_cols = grid[1]
+        
+        assert all([type(v)==int for v in (posX,posY,w,h)])
+        self.posX = posX
+        self.posY = posY
+        self.w = w
+        self.h = w
         
         #enforce that the imgs must be a list of cv2 images (np arrays)
         assert type(imgs) in [list,tuple]
@@ -74,12 +81,23 @@ class SimpleImageViewer:
                 index_list.append((i,j))
         index_length = len(index_list)
         
+        if (self.n_rows == 1) and  (self.n_cols == 1):
+            index_list = [0,]
+        if (self.n_rows == 1) and  (self.n_cols != 1):
+            index_list = [j for j in range(self.n_cols)]
+        elif (self.n_rows != 1) and  (self.n_rows == 1):
+            index_list = [i for i in range(self.n_rows)]
+        
         img_length = len(self.image_list)
         
         # remove the grid from all plots
-        for index in index_list:
-            self.ax[index].axis("off")
-            self.ax[index].axis("off")
+        for idx in index_list:
+            if img_length == 1:
+                self.ax.axis("off")
+                self.ax.axis("off")
+            else:
+                self.ax[idx].axis("off")
+                self.ax[idx].axis("off")
         
         # limit the forloop iterations to the max plottable number of images in the grid
         max_plots = min([self.n_rows*self.n_cols, img_length])
@@ -90,19 +108,28 @@ class SimpleImageViewer:
             try:
                 #plot image
                 if len(img.shape)==2: #we have a grayscale image
-                    self.ax[idx].imshow(img,cmap='gray',vmin=0, vmax=255) 
+                    if img_length == 1:
+                        self.ax.imshow(img,cmap='gray',vmin=0, vmax=255)
+                    else:
+                        self.ax[idx].imshow(img,cmap='gray',vmin=0, vmax=255) 
                 else: # we have a BGR image
-                    self.ax[idx].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                    if img_length == 1:
+                        self.ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                    else:
+                        self.ax[idx].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
                 
                 #set title from labellist (if any)
                 if i < len(self.label_list):
-                    self.ax[idx].title.set_text( str(self.label_list[i]) )
+                    if img_length == 1:
+                        self.ax.title.set_text( str(self.label_list[i]) )
+                    else:
+                        self.ax[idx].title.set_text( str(self.label_list[i]) )
             except:
                 raise Exception('Problem at index {} when plotting imgs'.format(str(idx)))
         
         
         thismanager = plt.get_current_fig_manager()
-        thismanager.window.setGeometry(100,100,640, 545)
+        thismanager.window.setGeometry(self.posX, self.posY, self.w, self.h)
         plt.show()
         pass
     
