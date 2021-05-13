@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from datetime import datetime
+import math
 
 
 class SimpleImageViewer:
@@ -27,15 +28,14 @@ class SimpleImageViewer:
         Label of the Window. The default is None.
     """
     
-    def __init__(self,grid,imgs,labels=None, windowname=None, 
+    def __init__(self,imgs,grid=None,labels=None, windowname=None, 
                  posX=100, posY=100, w=650, h=550):
-        
-        # enforce correct data types for grid
-        assert type(grid) in [list, tuple]
-        assert type(grid[0]) == int
-        assert type(grid[1]) == int
-        self.n_rows = grid[0]
-        self.n_cols = grid[1]
+        # determine grid
+        if grid == None:
+            self.find_grid(len(imgs))
+        else:
+            assert type(grid) in [int,list, tuple]
+            self.find_grid(grid)
         
         assert all([type(v)==int for v in (posX,posY,w,h)])
         self.posX = posX
@@ -65,6 +65,29 @@ class SimpleImageViewer:
         
         #show the window
         self.show()
+        pass
+    
+    def find_grid(self,grid):
+        """If the 'grid' is a tuple, then take those two ints as grid.
+        
+        If it is an int, then try to find the next nearst square (or nearly square) grid."""
+        if type(grid) in [list, tuple]:
+            assert type(grid[0]) == int
+            assert type(grid[1]) == int
+            self.n_rows = grid[0]
+            self.n_cols = grid[1]
+        else: #int
+            sqrt = math.sqrt(grid)
+            n1 = math.floor(sqrt)
+            n2 = math.ceil(sqrt)
+            
+            if n1*n2 >= grid:
+                self.n_rows = n1    # nearly square solution
+                self.n_cols = n2
+            else:
+                self.n_rows = n2    # square solution
+                self.n_cols = n2
+            
         pass
     
     def show(self):
