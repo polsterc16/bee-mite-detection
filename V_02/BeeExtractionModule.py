@@ -70,6 +70,7 @@ class BackgroundImageClass:
         assert alpha_weight <= 1
         self.alpha = alpha_weight
         pass
+    
     def reset(self, start_index=0, times=1):
         """Will set the background image to the image at 'start_index' 
         in the ImageLoaderClass object and then update a number of 
@@ -157,30 +158,114 @@ class BackgroundImageClass:
     
 
 class ParentImageClass:
-    def __init__(self,ILO,index:int, focus_size=(128,128)):
+    def __init__(self, ILO: IHM.ImageLoaderClass, 
+                 BGHandler: BackgroundImageClass, 
+                 index:int,
+                 path_extr:str,
+                 gauss_blurr_size=5, otsu_min_threshold=10,
+                 open_close_kernel_size = 7,
+                 pixel_area_min=1000, pixel_area_max=6000, 
+                 focus_img_size=(128,128),focus_dilate_kernel_size=32):
         self._ILO = ILO
+        self._path_ILO = self._ILO._IFC_path
+        self._BG_ref = BGHandler
         self._index = index
-        self.set_focus_img_size(focus_size)
+        self.set_path_extracted(path_extr)
+        
+        self.set_parent_gauss_blurr_size(gauss_blurr_size)
+        self.set_parent_otsu_min_threshold(otsu_min_threshold)
+        self.set_parent_open_close_kernel(open_close_kernel_size)
+        self.set_parent_pixel_area_min_max(pixel_area_min, pixel_area_max)
+        
+        self.set_focus_dilate_kernel_size(focus_dilate_kernel_size)
+        self.set_focus_img_size(focus_img_size)
         
         
-        self._path = self._ILO._IFC_path
         
         # deepcopy of image
         self._img = self._ILO.get_img(self._index).copy()
-        temp = self._img.shape
-        self._dim = (temp[1],temp[0])
+        self._dim = (self._img.shape[1],self._img.shape[0])
         # deepcopy of image (original)
         self._orig_img = self._ILO.get_img_orig(self._index).copy()
-        temp = self._orig_img.shape
-        self._orig_dim = (temp[1],temp[0])
+        self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
         
         # init some child objects/vars
         self.child_cnt = 0
         self.child_list = []
         
+        # init the img dictionary
+        self.img = dict()
+        
+        self.p00_fetch_src_gray(self)
+        
         pass
     
+    ### -----------------------------------------------------------------------
+    ### PARENT config FUNCTIONS
+    ### -----------------------------------------------------------------------
+    def set_path_extracted(self,path_extracted):
+        """Sets the directory path to save all extracted information to."""
+        assert (type(path_extracted) == str)    # ensure that path is a string
+        
+        # Stop object creation, if no valid file path is given
+        if os.path.isdir(path_extracted) == False:
+            raise Exception("Requires a legal directory path!")
+        
+        self.path_extracted = os.path.abspath(path_extracted)
+        pass
+    
+    def get_path_extracted(self):
+        """Returns the directory path to where all extracted information shall be stored at."""
+        return str(self.path_extracted)
+    
+    def get_path_source(self):
+        """Returns the directory path to the bee images, which shall be investigated."""
+        return str(self._path_ILO)
+    
+    def set_parent_gauss_blurr_size(self,kernel_size):
+        """Creates the tuple for the gaussian blurr of the difference image. 
+        Will convert to an odd number, if necessary. (minimum size = 3)"""
+        temp = int(kernel_size)
+        if (temp % 2) != 1: temp += 1 # make an odd number
+        if temp < 3: temp = 3
+        self.parent_gauss_blurr_kernel = (temp,temp)
+        pass
+    
+    def set_parent_otsu_min_threshold(self,otsu_min_th):
+        """Sets the minimum accepted threshold value generated from the OTSU algorithm."""
+        if otsu_min_th < 0:
+            self.parent_otsu_min_th = 0
+        else:
+            self.parent_otsu_min_th = int(otsu_min_th)
+        pass
+    
+    def set_parent_open_close_kernel(self, open_close_kernel_size):
+        """Creates a circular (elliptic) kernel based on the specified kernel 
+        size. Will convert to an odd number, if necessary."""
+        #  kernel size must be an odd integer
+        temp = int(open_close_kernel_size)
+        
+        # make an odd number
+        if (temp % 2) != 1: temp += 1
+        
+        # create circular (elliptic) kernel
+        self.parent_open_close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(temp,temp))
+        pass
+    
+    def set_parent_pixel_area_min_max(self, min_a:int, max_a:int):
+        """Sets the minimum and maximum area size for a detected blob to be considered to be a Bee."""
+        assert min_a > 0
+        assert max_a > min_a
+        self.parent_area_min_max = (min_a, max_a)
+        pass
+    
+    ### -----------------------------------------------------------------------
+    ### FOCUS config FUNCTIONS
+    ### -----------------------------------------------------------------------
     def set_focus_img_size(self,dim):
+        """Defines the size of the focus image (which shall contain only the extracted bee).
+        
+        dim: tuple of two ints."""
         assert type(dim) in [list,tuple]            # ensure, that it is a tuple
         assert len(dim) == 2                        # ensure, that it has 2 items
         assert all( [type(v)==int for v in dim] )   # ensure, that it only contains ints
@@ -188,17 +273,68 @@ class ParentImageClass:
         #check if focus size is smaller than parent image size
         fw,fh = dim # focus dimensions
         pw,ph = self._ILO._scale_dim # parent dimensions
-        assert fw <= pw
-        assert fh <= ph
+        if not fw <= pw: raise Exception("Error: set_focus_img_size: fw <= pw")
+        if not fh <= ph: raise Exception("Error: set_focus_img_size: fh <= ph")
         
-        self._focus_size = dim
+        self._focus_size = tuple(dim)
         pass
+    
+    def get_focus_img_size(self):
+        """Returns the currently defined size of the focus image (which shall contain only the extracted bee).
+        
+        return: tuple of two ints"""
+        return self._focus_size
+    
+    ### -----------------------------------------------------------------------
+    ### PROCESS FUNCTIONS
+    ### -----------------------------------------------------------------------
+    def p00_fetch_src_gray(self):
+        """fetch the first image (grayscale of original)"""
+        self.img["00 gray"] = self._ILO.get_img(self._index)
+        pass
+    def p10_diff_from_bg(self):
+        """get the int16 difference image, convert it to uint8"""
+        diff_int16 = self._BG_ref.get_bg_diff(self.img["00 gray"])
+        
+        # This ignores artefacts from bees leaving the image (which would be negative)
+        _,diff_uint8 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
+        
+        self.img["10 diff"] = diff_uint8
+        pass
+    def p_threshold_diff(self, source, DEBUG=False):
+        """Performs gaussian blurr on difference image.
+        
+        Thresholds the blurred difference image with OTSU algorithm. 
+        (If the OTSU threshold is below the min_th_value, then the output image 
+        MUST be viewed as 'empty'.)"""
+        
+        # perform gaussian blurr (kernel size defined in constructor)
+        k = self.prop_gauss_blurr_kernel
+        diff_blurred = cv2.GaussianBlur(np.uint8(img),k,0)
+        
+        # myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
+        
+        # 50 : perform threshold with OTSU, but be careful about its threshold value!
+        otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        self.img["20 threshold"] = img_otsu
+        
+        
+        if DEBUG:
+            imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu]
+            labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold)]
+            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff")
+        
+        return otsu_threshold
         
 
 class BeeFocusImage:
-    def __init__(self, parent:ParentImageClass, bee_ID:int, contour, 
+    def __init__(self, parent: ParentImageClass, 
+                 bee_ID: int, contour, 
                  bg_gauss_kernel_size=11, dilate_kernel_size=32):
         self.parent = parent
+        self.parent_orig = self.parent._orig_img
+        self.parent_dim = self.parent._ILO._scale_dim
         self.bee_ID = bee_ID
         self.focus_size = self.parent._focus_size
         
@@ -250,9 +386,9 @@ class BeeFocusImage:
         pass
     
     def fetch_roi_img(self):
-        fw,fh = self.focus_size                 # w,h of focus img
-        pw,ph = self.parent._ILO._scale_dim     # w,h of parent img
-        cx,cy = self.pos_center_parent          # center position of contour
+        fw,fh = self.focus_size             # w,h of focus img
+        pw,ph = self.parent_dim             # w,h of parent img
+        cx,cy = self.pos_center_parent      # center position of contour
         
         # get theoretical anchor points, based on cx,cy alone
         a1 = [cx-fw//2, cy-fh//2] # top left
@@ -286,7 +422,7 @@ class BeeFocusImage:
         # now, that we have the anchor points, we can fetch the ROI
         self.pos_anchor = tuple(a1)
         # ROI = img[row1:row2, col1:col2] = img[y1:y2, x1:x2]
-        self.img_roi = self.parent._orig_img[a1[1]:a2[1], a1[0]:a2[0]].copy()
+        self.img_roi = self.parent_orig[a1[1]:a2[1], a1[0]:a2[0]].copy()
         
         # # get the offset for the contour line (for use in the focus image) based on our anchor position
         # ax,ay = self.pos_anchor
