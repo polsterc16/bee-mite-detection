@@ -403,6 +403,11 @@ class ImageLoaderClass:
             img_1 = cv2.resize(img_0, self._scale_dim, interpolation = cv2.INTER_AREA )
         else:
             img_1 = img_0
+            # we do not resize, but we assert, that the img sizes/dims are the same
+            s1 = img_1.shape
+            s1 = (s1[1],s1[0])  # the numpy ".shape" is always (rows,cols), which is the wrong way around!
+            s2 = self._scale_dim
+            assert (s1[0]==s2[0]) and (s1[1]==s2[1])
         
         
         # 50 : check if conversion to grayscale is desired
