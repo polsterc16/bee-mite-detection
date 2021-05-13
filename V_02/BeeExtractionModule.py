@@ -53,6 +53,108 @@ import PlotHelperModule as PHM
 
 
 # %% CLASS DEFINES
+class BackgroundImageClass:
+    def __init__(self, ILO, start_index=0, alpha_weight=0.05):
+        self._ILO = ILO
+        self.set_alpha_weight(alpha_weight)
+        
+        self.reset(times=1)
+        pass
+    
+    def set_alpha_weight(self,alpha_weight):
+        """Defines with which weight new images are added to the background 
+        in order to gain the running average.
+        
+        alpha_weight : float between 0 and 1. """
+        assert alpha_weight >= 0
+        assert alpha_weight <= 1
+        self.alpha = alpha_weight
+        pass
+    def reset(self, start_index=0, times=1):
+        """Will set the background image to the image at 'start_index' 
+        in the ImageLoaderClass object and then update a number of 
+        [times - 1] times. (overall: still uses [times] images)"""
+        assert start_index >= 0     # start_index must be positive int
+        assert times >= 1           # must be >= 1
+        
+        index = start_index
+        self.set_bg_new(index)
+        
+        # perform [times] updates on the bg, if set to greater than '1'
+        if times > 1:
+            for i in tqdm(range(times-1),initial=2,total=times, desc="Reset BG (start_index={})".format(start_index)):
+                index += 1
+                self._update_bg_once(index)
+        pass
+    
+    def set_bg_new(self, index=0):
+        """Will overwrite the background image data with the image at 
+        'index' in the ImageLoaderClass object."""
+        assert index >= 0     # index must be positive int
+        
+        img_new = self._ILO.get_img(index)      # load new image
+        self.img_bg = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
+        pass
+    
+    def update_bg(self,start_index:int, times=1):
+        """Will update the background image a number of [times] times, from 
+        the position of 'start_index' in the ImageLoaderClass object."""
+        assert start_index >= 0     # start_index must be positive int
+        assert times >= 1           # must be >= 1
+        
+        index = start_index
+        
+        # if only ONE time, then without progressbar
+        if times == 1:
+            self._update_bg_once(index)
+        else: #otherwise with progress bar
+            for i in tqdm(range(times), desc="Reset BG (start_index={})".format(start_index)):
+                self._update_bg_once(index)
+                index += 1
+        pass
+    
+    def _update_bg_once(self,index:int):
+        """Will update the background image ONCE, from 
+        the position of 'index' in the ImageLoaderClass object."""
+        if index < 0: return # do nothing if we pass a negative value
+    
+        # load new image
+        img_new = self._ILO.get_img(self.index)
+        # weighted accumulation
+        assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
+        cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
+        pass
+    
+    def get_bg_diff(self,img,inverse=True):
+        """
+        Calculates the difference between the background image and the provided 'img'.
+        
+        Due to the bees being dark (lower values) compared to the light background 
+        (higher values), we must subtract the 'img' from 'bg' (inverse=True), 
+        to get positive values for the position of NEW bees.
+        
+        (positions were bees have left will have negative values, but those 
+        can be ignored later on, by casting back to uint8)
+
+        Parameters
+        ----------
+        img : : numpy.ndarray
+            Grayscale uint8 image.
+        inverse : : Bool, optional
+            Defines whether diff=img-bg (False), or diff=bg-img (True). The default is True.
+
+        Returns
+        -------
+        img_diff : : numpy.ndarray
+            Grayscale int16 image.
+        """
+        if inverse:
+            img_diff = np.int16(self.img_bg) - np.int16(img)
+        else:
+            img_diff = np.int16(img) - np.int16(self.img_bg)
+        return img_diff
+    
+    
 
 class ParentImageClass:
     def __init__(self,ILO,index:int, focus_size=(128,128)):
