@@ -10,25 +10,7 @@ PURPOSE: Find appropriate filters that allow for finding regions containing Bees
 
 # Based on V_01/test_12.py
 
-(MEAN on resize)
-RESIZE
-DIFF
-THRES
 
-gaus - thres - dilate
-
-
-1) das vorherige bild wird zum MEAN dazugewichtet
-2) das nächste bild wird gelesen und auf 400x300 resized (added black bar on left)
-3) DIFFERENCE bilden zwischen RESIZE und MEAN
-4) mean value & standard deviation berechnen von DIFFERENCE
-5) THRES: gauss (5x5 kernel) & threshold (th=mean + 1.2*std) auf DIFF
-6) REDUCED: gauss (grosser kernel) & threshold (th=200) auf THRES to get only body of bee
-7) DILATE: dilate the REDUCED to get the full bee
-8) make overlay mask to show results
-
-
-9) versuchen, das mit 2000 bildern durchzuführen
 
 """
 #%%
@@ -209,8 +191,7 @@ class ParentImageClass:
             if num_childen > 0:
                 imgs.append(self.img["25 reduced"])
                 labels.append("25 reduced")
-            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "ParentImageClass init")
-                
+            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "ParentImageClass init {}".format(self._index))
             pass
         
         
@@ -236,7 +217,8 @@ class ParentImageClass:
         else:# ---------------------------------
             # This image has bees, maybe
             self.p25_openclose_threshold()
-            self.p30_contours_extract_check(self)
+            self.p30_contours_extract_check()
+            self.p31_contours_debug(DEBUG=True)
             return len(self.contour_list)
         # --------------------------------------
         pass
@@ -416,18 +398,74 @@ class ParentImageClass:
         #   because everything else does not make sense to handle (bees inside 
         #   a different detected object)
         _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.contour_list_raw = contours
         
         # calc all areas
-        areas = [int( cv2.contourArea(c) ) for c in contours]
+        self.contour_areas = [int( cv2.contourArea(c) ) for c in contours]
         
         # check all areas for their size
         (min_a, max_a) = self.parent_area_min_max
-        checklist = [(a>=min_a and a<=max_a) for a in areas]
+        checklist = [(a>=min_a and a<=max_a) for a in self.contour_areas]
 
         # based on this True/False list, the final contour_list is filled
-        for i in range(len(areas)):
+        for i in range(len(self.contour_areas)):
             if checklist[i]:
                 self.contour_list.append(contours[i])
+        pass
+    
+    def p31_contours_debug(self, DEBUG=False):
+        """Creates adebug image after getting the contours"""
+    
+        # fetch gray source image
+        img = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
+        img = np.float32( img ) #cast to float for weighted addition
+        
+        # make overlay for the weighted addition with the discovered blobs
+        img_overlay = np.zeros(img.shape,dtype=np.uint8)
+        img_overlay[:,:,2] = self.img["25 reduced"].copy() # write the reduced img to the red channel
+        # perform weighted add of overlay
+        cv2.accumulateWeighted(img_overlay, img, 0.333, mask=img_overlay[:,:,2])
+        img = np.uint8(img)
+        
+        # reset overlay
+        img_overlay = np.zeros(img.shape,dtype=np.uint8)
+        
+        info_list=[]    # get a list full of the center coordinates and the area
+        for c in self.contour_list_raw:
+            M = cv2.moments(c)
+            A = M["m00"]
+            cx = int(M['m10']/M['m00'])
+            cy = int(M['m01']/M['m00'])
+            info_list.append((cx,cy,A))
+        
+        #add text
+        fontFace = cv2.FONT_HERSHEY_PLAIN 
+        color=(255,127,0) #blue
+        size = 1
+        (tx,ty),_=cv2.getTextSize("A", fontFace, size, 2)
+        
+        a_min,a_max = self.parent_area_min_max
+        for i in range(len(info_list)):
+            cx,cy,A=info_list[i]
+            if A<a_min:     check = "-"
+            elif (A>a_max): check = "X"
+            else:           check = "+"
+            txt = "{}: {} {}".format( i, int(A), check)
+            # write index and area to top left
+            cv2.putText(img_overlay, txt, (1,(i+1)*(ty+1)), fontFace, size, (255,255,255)) #blue
+            # write index to center
+            cv2.putText(img_overlay, str(i), (cx,cy), fontFace, size, (0,255,255)) #yellow
+        img = cv2.bitwise_or(img, img_overlay) # hard burning of overly into img
+            
+        self.img["31 debug"] = img
+        # REEEEEEALLY low quality saving
+        # path = os.path.join(self.path_extracted, "DEBUG/{}_debug.jpg".format())
+        # cv2.imwrite("0.jpg",myPar.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,20])
+        
+        if DEBUG:
+            imgs = [self.img["31 debug"],]
+            labels = ["31 debug",]
+            mySIV = PHM.SimpleImageViewer((1,1), imgs, labels, "p31_contours_debug",posX=900)
         pass
         
 
@@ -1404,12 +1442,12 @@ if __name__== "__main__":
         myPath = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "./extracted/"
         
-        myIFC = IHM.ImageFinderClass(myPath,maxFiles=100,acceptedExtensionList=("png",))
+        myIFC = IHM.ImageFinderClass(myPath,maxFiles=0,acceptedExtensionList=("png",))
         myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
         
         myBGH = BackgroundImageClass(myILC,0,alpha_weight=0.1)
         myBGH.reset(0,20)
-        index=30
+        index=5020
         myBGH.update_bg(index-20,20)
         
         myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
@@ -1423,6 +1461,8 @@ if __name__== "__main__":
         myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
                                  open_close_kernel_size=8,
                                  focus_dilate_kernel_size=20,
+                                 pixel_area_min=1000,
+                                 pixel_area_max=5000,
                                  DEBUG=True)
         pass
     
