@@ -83,7 +83,7 @@ class BackgroundImageClass:
         
         # perform [times] updates on the bg, if set to greater than '1'
         if times > 1:
-            for i in tqdm(range(times-1),initial=2,total=times, desc="Reset BG (start_index={})".format(start_index)):
+            for i in tqdm(range(times-1),initial=1,total=times, desc="Reset BG (start_index={})".format(start_index)):
                 index += 1
                 self._update_bg_once(index)
         pass
@@ -109,7 +109,7 @@ class BackgroundImageClass:
         if times == 1:
             self._update_bg_once(index)
         else: #otherwise with progress bar
-            for i in tqdm(range(times), desc="Reset BG (start_index={})".format(start_index)):
+            for i in tqdm(range(times), desc="Update BG (start_index={})".format(start_index)):
                 self._update_bg_once(index)
                 index += 1
         pass
@@ -120,7 +120,7 @@ class BackgroundImageClass:
         if index < 0: return # do nothing if we pass a negative value
     
         # load new image
-        img_new = self._ILO.get_img(self.index)
+        img_new = self._ILO.get_img(index)
         # weighted accumulation
         assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
         cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
@@ -165,7 +165,10 @@ class ParentImageClass:
                  gauss_blurr_size=5, otsu_min_threshold=10,
                  open_close_kernel_size = 7,
                  pixel_area_min=1000, pixel_area_max=6000, 
-                 focus_img_size=(128,128),focus_dilate_kernel_size=32):
+                 focus_img_size=(128,128),
+                 focus_bg_gauss_kernel_size=11,
+                 focus_dilate_kernel_size=32,
+                 DEBUG=False):
         self._ILO = ILO
         self._path_ILO = self._ILO._IFC_path
         self._BG_ref = BGHandler
@@ -177,10 +180,9 @@ class ParentImageClass:
         self.set_parent_open_close_kernel(open_close_kernel_size)
         self.set_parent_pixel_area_min_max(pixel_area_min, pixel_area_max)
         
-        self.set_focus_dilate_kernel_size(focus_dilate_kernel_size)
         self.set_focus_img_size(focus_img_size)
-        
-        
+        self.set_focus_bg_gauss_kernel_size(focus_bg_gauss_kernel_size)
+        self.set_focus_dilate_kernel_size(focus_dilate_kernel_size)
         
         # deepcopy of image
         self._img = self._ILO.get_img(self._index).copy()
@@ -190,14 +192,53 @@ class ParentImageClass:
         self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
         
         # init some child objects/vars
-        self.child_cnt = 0
+        self.contour_list = []
         self.child_list = []
         
         # init the img dictionary
         self.img = dict()
         
-        self.p00_fetch_src_gray(self)
         
+        num_childen = self.process_1()
+        # the number of childen is equal to the number of contours in the contour list. (with )
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
+            labels=["00 gray","10 diff","20 threshold"]
+            
+            if num_childen > 0:
+                imgs.append(self.img["25 reduced"])
+                labels.append("25 reduced")
+            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "ParentImageClass init")
+                
+            pass
+        
+        
+        # Fill the child list with BeeFocusImage objects
+        for i in range(len(self.contour_list)):
+            self.child_list.append(BeeFocusImage(self,i,self.contour_list[i],
+                                                 self._focus_bg_gauss_kernel_size,
+                                                 self._focus_dilate_kernel_size))
+        pass
+    
+    def process_1(self) -> int:
+        """Get gray source image, get difference from bg, get otsu_th, get contours (unless otsu th is too low)"""
+        self.p00_fetch_src_gray()   # get the grayscale source image
+        self.p10_diff_from_bg()     # get the difference from the BG
+        otsu_th = self.p20_threshold_diff()     # get otsu_th value from thresholding
+        
+        
+        self.contour_list = []          # make empty list for contours
+        # --------------------------------------
+        if otsu_th < self.parent_otsu_min_th:
+            # This image has no bees
+            return len(self.contour_list)
+        else:# ---------------------------------
+            # This image has bees, maybe
+            self.p25_openclose_threshold()
+            self.p30_contours_extract_check(self)
+            return len(self.contour_list)
+        # --------------------------------------
         pass
     
     ### -----------------------------------------------------------------------
@@ -240,16 +281,18 @@ class ParentImageClass:
         pass
     
     def set_parent_open_close_kernel(self, open_close_kernel_size):
-        """Creates a circular (elliptic) kernel based on the specified kernel 
-        size. Will convert to an odd number, if necessary."""
-        #  kernel size must be an odd integer
-        temp = int(open_close_kernel_size)
+        """Creates a circular kernel of size 5 and determines the necessary 
+        number of iterations to have effectively the same kernel size.
         
-        # make an odd number
-        if (temp % 2) != 1: temp += 1
-        
-        # create circular (elliptic) kernel
-        self.parent_open_close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(temp,temp))
+        (Having a big kernel makes for slow operations. Performing several 
+        iterations instead is quicker and leads to nearly the same result)"""
+        # create circular kernel
+        ks = 5
+        self.parent_open_close_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(ks,ks))
+        # calculate the number of necessary iterations
+        self.parent_open_close_iter = int( open_close_kernel_size/(ks-1) )
+        if self.parent_open_close_iter < 1:
+            self.parent_open_close_iter = 1
         pass
     
     def set_parent_pixel_area_min_max(self, min_a:int, max_a:int):
@@ -285,47 +328,107 @@ class ParentImageClass:
         return: tuple of two ints"""
         return self._focus_size
     
+    def set_focus_bg_gauss_kernel_size(self, gauss_kernel_size:int):
+        self._focus_bg_gauss_kernel_size = gauss_kernel_size
+        pass
+    def set_focus_dilate_kernel_size(self, dilate_kernel_size:int):
+        self._focus_dilate_kernel_size = dilate_kernel_size
+        pass
+    
     ### -----------------------------------------------------------------------
     ### PROCESS FUNCTIONS
     ### -----------------------------------------------------------------------
-    def p00_fetch_src_gray(self):
+    def p00_fetch_src_gray(self, DEBUG=False):
         """fetch the first image (grayscale of original)"""
         self.img["00 gray"] = self._ILO.get_img(self._index)
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"]]
+            labels=["00 gray"]
+            mySIV = PHM.SimpleImageViewer((1,2),imgs,labels, "p00_fetch_src_gray")
         pass
-    def p10_diff_from_bg(self):
+    
+    def p10_diff_from_bg(self, DEBUG=False):
         """get the int16 difference image, convert it to uint8"""
         diff_int16 = self._BG_ref.get_bg_diff(self.img["00 gray"])
         
         # This ignores artefacts from bees leaving the image (which would be negative)
-        _,diff_uint8 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
+        _,diff_int16 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
         
-        self.img["10 diff"] = diff_uint8
+        self.img["10 diff"] = np.uint8(diff_int16)
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"], self.img["10 diff"]]
+            labels=["00 gray","10 diff"]
+            mySIV = PHM.SimpleImageViewer((1,2),imgs,labels, "p10_diff_from_bg")
         pass
-    def p_threshold_diff(self, source, DEBUG=False):
+    
+    def p20_threshold_diff(self, DEBUG=False):
         """Performs gaussian blurr on difference image.
         
         Thresholds the blurred difference image with OTSU algorithm. 
         (If the OTSU threshold is below the min_th_value, then the output image 
         MUST be viewed as 'empty'.)"""
         
-        # perform gaussian blurr (kernel size defined in constructor)
-        k = self.prop_gauss_blurr_kernel
-        diff_blurred = cv2.GaussianBlur(np.uint8(img),k,0)
+        # perform gaussian blurr 
+        diff_blurred = cv2.GaussianBlur(self.img["10 diff"],self.parent_gauss_blurr_kernel,0)
         
-        # myHist = cv2.calcHist([temp],[0],None,[256],[0,256])
-        
-        # 50 : perform threshold with OTSU, but be careful about its threshold value!
+        # perform threshold with OTSU, but be careful about its threshold value!
         otsu_threshold, img_otsu = cv2.threshold(diff_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         self.img["20 threshold"] = img_otsu
         
-        
         if DEBUG:
-            imgs = [self.img["00 src"], self.img["bg"], diff_blurred, img_otsu]
-            labels=["image","BG","diff_blurred","otsu {}".format(otsu_threshold)]
-            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "threshold_diff")
+            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
+            labels=["00 gray","10 diff","otsu {}".format(otsu_threshold)]
+            mySIV = PHM.SimpleImageViewer((2,2),imgs,labels, "p20_threshold_diff")
         
         return otsu_threshold
+    
+    def p25_openclose_threshold(self, DEBUG=False):
+        """Performs Closing (remove black holes) and then Opening 
+        (remove lone white pixels) on the Threshold image (source)."""
+        img = self.img["20 threshold"]
+        # TODO: Test, if it works better with one additional erosion and dilation!
+        img = cv2.erode(img, self.parent_open_close_kernel)
+        
+        img_closed = cv2.morphologyEx( img, cv2.MORPH_CLOSE, 
+                                      kernel=self.parent_open_close_kernel, 
+                                      iterations=self.parent_open_close_iter )
+        
+        img_opened = cv2.morphologyEx( img_closed, cv2.MORPH_OPEN,  
+                                      kernel=self.parent_open_close_kernel, 
+                                      iterations=self.parent_open_close_iter )
+        
+        img = cv2.dilate(img_opened, self.parent_open_close_kernel)
+        
+        self.img["25 reduced"] = img
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"],self.img["20 threshold"], img_closed, img_opened]
+            labels = ["00 gray", "20 threshold", "img_closed", "img_opened"]
+            mySIV = PHM.SimpleImageViewer((2,2), imgs, labels, "p25_openclose_threshold")
+        pass
+    
+    def p30_contours_extract_check(self, DEBUG=False):
+        """Extract outermost contours to detect possible bees."""
+        # We are only interested in the outermost contours (EXTERNAL), 
+        #   because everything else does not make sense to handle (bees inside 
+        #   a different detected object)
+        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # calc all areas
+        areas = [int( cv2.contourArea(c) ) for c in contours]
+        
+        # check all areas for their size
+        (min_a, max_a) = self.parent_area_min_max
+        checklist = [(a>=min_a and a<=max_a) for a in areas]
+
+        # based on this True/False list, the final contour_list is filled
+        for i in range(len(areas)):
+            if checklist[i]:
+                self.contour_list.append(contours[i])
+        pass
         
 
 class BeeFocusImage:
@@ -383,6 +486,9 @@ class BeeFocusImage:
         cx = int(M['m10']/M['m00'])
         cy = int(M['m01']/M['m00'])
         self.pos_center_parent = (cx,cy)
+        
+        # get the minAreaRect
+        self.minAreaRect = cv2.minAreaRect(self.contour)
         pass
     
     def fetch_roi_img(self):
@@ -406,12 +512,12 @@ class BeeFocusImage:
             a1[1] = 0           # set top anchor to top img border
             a2[1] = a1[1] + fh  # anjust bottom anchor
         # check if conflict RIGHT
-        if a1[0] > pw:
+        if a2[0] > pw:
             conflict +=1        # inc counter
             a2[0] = pw          # set right anchor to right img border
             a1[0] = a2[0] - fw  # anjust left anchor
         # check if conflict BOTTOM
-        if a1[1] > ph:
+        if a2[1] > ph:
             conflict +=1        # inc counter
             a2[1] = ph          # set bottom anchor to bottom img border
             a1[1] = a2[1] - fh  # anjust top anchor
@@ -457,8 +563,10 @@ class BeeFocusImage:
         # Put FG in BG
         self.img_focus = cv2.add(img_bg,img_fg)
         
-        # we also generate the dilated contours, since the parent might need them to draw
-        _,c_outer, _ = cv2.findContours(self.mask_dil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # we also generate the dilated contours (in parent coords: with anchor offset), 
+        #   since the parent might need them for drawing
+        _,c_outer, _ = cv2.findContours(self.mask_dil, cv2.RETR_EXTERNAL, 
+                                        cv2.CHAIN_APPROX_SIMPLE, offset=(ax,ay))
         self.contour_dilate = c_outer[0] #there SHOULD only be ONE outer contour
         pass
     
@@ -476,6 +584,9 @@ class BeeFocusImage:
     
     def get_img_focus(self):
         return self.img_focus
+    
+    def get_minAreaRect(self):
+        return self.minAreaRect
     
 
 #%%
@@ -1232,7 +1343,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 2
+    TEST = 3
     # %%
     if TEST == 1:
         # myPath = "C:\\Users\\Admin\\0_FH_Joanneum\\ECM_S3\\PROJECT\\bee_images\\01_8_2020\\5"
@@ -1285,4 +1396,36 @@ if __name__== "__main__":
         cv2.imshow("6",cv2.resize(myBee.img_focus, (256,256), interpolation = cv2.INTER_AREA ))
         
         c_outer=myBee.get_contour_dilate()
+    #%%
+    if TEST==3:
+        cv2.destroyAllWindows()
+        plt.close('all')
         
+        myPath = "D:\\ECM_PROJECT\\bee_images_small"
+        path_extr = "./extracted/"
+        
+        myIFC = IHM.ImageFinderClass(myPath,maxFiles=100,acceptedExtensionList=("png",))
+        myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
+        
+        myBGH = BackgroundImageClass(myILC,0,alpha_weight=0.1)
+        myBGH.reset(0,20)
+        index=30
+        myBGH.update_bg(index-20,20)
+        
+        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
+                                 open_close_kernel_size=11,DEBUG=True)
+        #%%
+        plt.close('all')
+        index+=1
+        
+        myBGH.update_bg(index)
+        
+        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
+                                 open_close_kernel_size=8,
+                                 focus_dilate_kernel_size=20,
+                                 DEBUG=True)
+        pass
+    
+    
+    
+    
