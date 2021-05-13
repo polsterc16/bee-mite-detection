@@ -68,8 +68,11 @@ print(c_off)
 cv2.drawContours(img3, [c_off], -1, (255,255,0), 1)
 cv2.imshow("win2",img3)
 
-
-
+#%%
+# contours
+areas = [int( cv2.contourArea(c) ) for c in contours]
+ell = cv2.fitEllipse(c0)
+minRect = cv2.minAreaRect(c_off)
 
 
 
