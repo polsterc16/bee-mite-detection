@@ -186,6 +186,7 @@ class ParentImageClass:
         
         self.process_1(DEBUG=True)
         self.process_2(DEBUG=True, debug_img=True)
+        self.process_3()
         
         
         # # Fill the child list with BeeFocusImage objects
@@ -241,7 +242,8 @@ class ParentImageClass:
         pass
     
     def process_3(self, DEBUG=False):
-        
+        self.p60_save_imgs()
+        self.p70_prepare_panda()
         pass
     
     ### -----------------------------------------------------------------------
@@ -415,17 +417,18 @@ class ParentImageClass:
         contours = self.contour_list_valid
         
         for ID,c in contours:
-            self.child_list.append( BeeFocusImage(ID, c,
+            self.child_list.append( BeeFocusImage(self,ID, c,
                                                   self._focus_bg_gauss_kernel_size,
                                                   self._focus_dilate_kernel_size))
         return len(self.child_list)
     
     def p60_save_imgs(self):
+        jpg_quality = 30
         self.path_debug_img = np.NaN    # default assignment
         # save the debug img, if exists (in really low quality, ofc)
-        if self.img["31 debug"] != None:
+        if type(self.img["31 debug"]) != type(None):
             self.path_debug_img = os.path.join(self.path_extracted, "DEBUG/{:06d}_debug.jpg".format(self._index))
-            cv2.imwrite(self.path_debug_img, self.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,20])
+            cv2.imwrite(self.path_debug_img, self.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,jpg_quality])
             pass
         
         self.path_bee_focus=[]
@@ -451,7 +454,7 @@ class ParentImageClass:
         self.ds_parent = pd.Series(parent_series)
         
         # prepare child list
-        bee_series=[]
+        self.ds_child_list=[]
         for i in range(len(self.child_list)):
             bee = self.child_list[i]
             fname,fpath = self.path_bee_focus[i]
@@ -1497,12 +1500,16 @@ if __name__== "__main__":
         myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
         
         myBGH = BackgroundImageClass(myILC,0,alpha_weight=0.1)
-        myBGH.reset(0,20)
-        index=5020
-        myBGH.update_bg(index-20,20)
+        index=0
+        myBGH.reset(0,10)
+        myBGH.update_bg(0)
         
-        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
-                                 open_close_kernel_size=11,DEBUG=True)
+        myPar = ParentImageClass(myILC,myBGH,index=index,path_extr=path_extr,
+                                 open_close_kernel_size=8,
+                                 focus_dilate_kernel_size=20,
+                                 pixel_area_min=1000,
+                                 pixel_area_max=5000,
+                                 DEBUG=True)
         #%%
         plt.close('all')
         index+=1
