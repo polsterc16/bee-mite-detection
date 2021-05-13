@@ -183,7 +183,7 @@ class ParentImageClass:
         
         
         self.process_1(DEBUG=True)
-        self.process_2(DEBUG=True)
+        self.process_2(DEBUG=True, debug_img=True)
         
         
         # # Fill the child list with BeeFocusImage objects
@@ -227,9 +227,18 @@ class ParentImageClass:
         
         return len(self.contour_list_raw)
     
-    def process_2(self, DEBUG=False):
-        """Check for valid area sizes of contours"""
-        self.p31_contours_debug(DEBUG=DEBUG)
+    def process_2(self, DEBUG=False, debug_img=False):
+        """(Generate debug images,) Check for valid area sizes of contours,
+        Generate bee_focus objects."""
+        if debug_img:   self.p31_contours_debug(DEBUG=DEBUG);
+        else:           self.img["31 debug"] = None; pass
+        
+        self.p40_contours_check(DEBUG=DEBUG)
+        
+        self.p50_generate_focus_imgs()
+        pass
+    
+    def process_3(self, DEBUG=False):
         
         pass
     
@@ -315,27 +324,6 @@ class ParentImageClass:
         self.contour_list_raw = contours
         pass
     
-    def p40_contours_check(self, DEBUG=False):
-        """Check the extracted contours if they are within min/max ares sizes."""
-        # We are only interested in the outermost contours (EXTERNAL), 
-        #   because everything else does not make sense to handle (bees inside 
-        #   a different detected object)
-        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        self.contour_list_raw = contours
-        
-        # calc all areas
-        self.contour_areas = [int( cv2.contourArea(c) ) for c in contours]
-        
-        # check all areas for their size
-        (min_a, max_a) = self.parent_area_min_max
-        checklist = [(a>=min_a and a<=max_a) for a in self.contour_areas]
-
-        # based on this True/False list, the final contour_list is filled
-        for i in range(len(self.contour_areas)):
-            if checklist[i]:
-                self.contour_list.append(contours[i])
-        pass
-    
     def p31_contours_debug(self, DEBUG=False):
         """Creates a debug image after getting the contours"""
     
@@ -394,6 +382,40 @@ class ParentImageClass:
             labels = ["31 debug",]
             mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p31_contours_debug",posX=900)
         pass
+    
+    def p40_contours_check(self, DEBUG=False) -> int:
+        """Check the extracted contours if they are within min/max ares sizes."""
+        self.contour_list_valid = []
+        if len(self.contour_list_raw)==0: return
+        
+        contours = self.contour_list_raw
+        
+        # calc all areas
+        contour_areas = [int( cv2.contourArea(c) ) for c in contours]
+        
+        # check all areas for their size
+        (min_a, max_a) = self.parent_area_min_max
+        checklist = [(a>=min_a and a<=max_a) for a in contour_areas]
+
+        # based on this True/False list, the final contour_list is filled
+        for i in range(len(contours)):
+            if checklist[i]:
+                self.contour_list_valid.append( (i,contours[i]) )
+                
+        return len(self.contour_list_valid)
+    
+    def p50_generate_focus_imgs(self, DEBUG=False) -> int:
+        """Generate BeeFocusImage objects from valid contours"""
+        self.child_list = []
+        if len(self.contour_list_valid)==0: return
+        
+        contours = self.contour_list_valid
+        
+        for ID,c in contours:
+            self.child_list.append( BeeFocusImage(ID, c,
+                                                  self._focus_bg_gauss_kernel_size,
+                                                  self._focus_dilate_kernel_size))
+        return len(self.child_list)
     
     ### -----------------------------------------------------------------------
     ### PARENT config FUNCTIONS
