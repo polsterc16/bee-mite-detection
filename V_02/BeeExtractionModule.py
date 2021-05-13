@@ -174,58 +174,63 @@ class ParentImageClass:
         self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
         
         # init some child objects/vars
-        self.contour_list = []
+        self.contour_list_valid = []
+        self.contour_list_raw = []
         self.child_list = []
         
         # init the img dictionary
         self.img = dict()
         
         
-        num_childen = self.process_1()
-        # the number of childen is equal to the number of contours in the contour list. (with )
-        
-        if DEBUG:
-            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
-            labels=["00 gray","10 diff","20 threshold"]
-            
-            if num_childen > 0:
-                imgs.append(self.img["25 reduced"])
-                labels.append("25 reduced")
-            mySIV = PHM.SimpleImageViewer(imgs,labels=labels, windowname="ParentImageClass init {}".format(self._index))
-            pass
+        self.process_1(DEBUG=True)
+        self.process_2(DEBUG=True)
         
         
-        # Fill the child list with BeeFocusImage objects
-        for i in range(len(self.contour_list)):
-            self.child_list.append(BeeFocusImage(self,i,self.contour_list[i],
-                                                 self._focus_bg_gauss_kernel_size,
-                                                 self._focus_dilate_kernel_size))
+        # # Fill the child list with BeeFocusImage objects
+        # for i in range(len(self.contour_list)):
+        #     self.child_list.append(BeeFocusImage(self,i,self.contour_list[i],
+        #                                          self._focus_bg_gauss_kernel_size,
+        #                                          self._focus_dilate_kernel_size))
         pass
     
     ### -----------------------------------------------------------------------
     ### PROCESS FUNCTIONS
     ### -----------------------------------------------------------------------
     
-    def process_1(self) -> int:
+    def process_1(self,DEBUG=False) -> int:
         """Get gray source image, get difference from bg, get otsu_th, get contours (unless otsu th is too low)"""
         self.p00_fetch_src_gray()   # get the grayscale source image
         self.p10_diff_from_bg()     # get the difference from the BG
         otsu_th = self.p20_threshold_diff()     # get otsu_th value from thresholding
         
         
-        self.contour_list = []          # make empty list for contours
-        self.contour_list_raw = []
+        self.contour_list_raw = []  # make empty list for contours
         # --------------------------------------
         if otsu_th < self.parent_otsu_min_th:
             # This image has no bees
-            return len(self.contour_list_raw)
+            pass
         else:# ---------------------------------
             # This image has bees, maybe
             self.p25_openclose_threshold()
             self.p30_contours_extract_raw()
-            self.p31_contours_debug(DEBUG=True)
-            return len(self.contour_list_raw)
         # --------------------------------------
+        
+        if DEBUG:
+            imgs = [self.img["00 gray"], self.img["10 diff"], self.img["20 threshold"]]
+            labels=["00 gray","10 diff","20 threshold"]
+            
+            if len(self.contour_list_raw) > 0:
+                imgs.append(self.img["25 reduced"])
+                labels.append("25 reduced")
+            mySIV = PHM.SimpleImageViewer(imgs,None,labels, "process_1 {}".format(self._index))
+            pass
+        
+        return len(self.contour_list_raw)
+    
+    def process_2(self, DEBUG=False):
+        """Check for valid area sizes of contours"""
+        self.p31_contours_debug(DEBUG=DEBUG)
+        
         pass
     
     
@@ -332,49 +337,53 @@ class ParentImageClass:
         pass
     
     def p31_contours_debug(self, DEBUG=False):
-        """Creates adebug image after getting the contours"""
+        """Creates a debug image after getting the contours"""
     
         # fetch gray source image
         img = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
-        img = np.float32( img ) #cast to float for weighted addition
         
-        # make overlay for the weighted addition with the discovered blobs
-        img_overlay = np.zeros(img.shape,dtype=np.uint8)
-        img_overlay[:,:,2] = self.img["25 reduced"].copy() # write the reduced img to the red channel
-        # perform weighted add of overlay
-        cv2.accumulateWeighted(img_overlay, img, 0.333, mask=img_overlay[:,:,2])
-        img = np.uint8(img)
-        
-        # reset overlay
-        img_overlay = np.zeros(img.shape,dtype=np.uint8)
-        
-        info_list=[]    # get a list full of the center coordinates and the area
-        for c in self.contour_list_raw:
-            M = cv2.moments(c)
-            A = M["m00"]
-            cx = int(M['m10']/M['m00'])
-            cy = int(M['m01']/M['m00'])
-            info_list.append((cx,cy,A))
-        
-        #add text
-        fontFace = cv2.FONT_HERSHEY_PLAIN 
-        color=(255,127,0) #blue
-        size = 1
-        (tx,ty),_=cv2.getTextSize("A", fontFace, size, 2)
-        
-        a_min,a_max = self.parent_area_min_max
-        for i in range(len(info_list)):
-            cx,cy,A=info_list[i]
-            if A<a_min:     check = "-"
-            elif (A>a_max): check = "X"
-            else:           check = "+"
-            txt = "{}: {} {}".format( i, int(A), check)
-            # write index and area to top left
-            cv2.putText(img_overlay, txt, (1,(i+1)*(ty+1)), fontFace, size, (255,255,255)) #blue
-            # write index to center
-            cv2.putText(img_overlay, str(i), (cx,cy), fontFace, size, (0,255,255)) #yellow
-        img = cv2.bitwise_or(img, img_overlay) # hard burning of overly into img
+        # if there are no contours, just make GRAY teh DEBUG image and stop
+        if len(self.contour_list_raw) > 0: 
+            img = np.float32( img ) #cast to float for weighted addition
             
+            # make overlay for the weighted addition with the discovered blobs
+            img_overlay = np.zeros(img.shape,dtype=np.uint8)
+            img_overlay[:,:,2] = self.img["25 reduced"].copy() # write the reduced img to the red channel
+            # perform weighted add of overlay
+            cv2.accumulateWeighted(img_overlay, img, 0.333, mask=img_overlay[:,:,2])
+            img = np.uint8(img)
+            
+            # reset overlay
+            img_overlay = np.zeros(img.shape,dtype=np.uint8)
+            
+            info_list=[]    # get a list full of the center coordinates and the area
+            for c in self.contour_list_raw:
+                M = cv2.moments(c)
+                A = M["m00"]
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                info_list.append((cx,cy,A))
+            
+            #add text
+            fontFace = cv2.FONT_HERSHEY_PLAIN 
+            color=(255,127,0) #blue
+            size = 1
+            (tx,ty),_=cv2.getTextSize("A", fontFace, size, 2)
+            
+            a_min,a_max = self.parent_area_min_max
+            for i in range(len(info_list)):
+                cx,cy,A=info_list[i]
+                if A<a_min:     check = "-"
+                elif (A>a_max): check = "X"
+                else:           check = "+"
+                txt = "{}: {} {}".format( i, int(A), check)
+                # write index and area to top left
+                cv2.putText(img_overlay, txt, (1,(i+1)*(ty+1)), fontFace, size, (255,255,255)) #blue
+                # write index to center
+                cv2.putText(img_overlay, str(i), (cx,cy), fontFace, size, (0,255,255)) #yellow
+            img = cv2.bitwise_or(img, img_overlay) # hard burning of overly into img
+            pass
+        
         self.img["31 debug"] = img
         # REEEEEEALLY low quality saving
         # path = os.path.join(self.path_extracted, "DEBUG/{}_debug.jpg".format())
