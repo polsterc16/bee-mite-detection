@@ -94,16 +94,20 @@ class ParentImageClass:
         
 
 class BeeFocusImage:
-    def __init__(self, parent:ParentImageClass, bee_ID:int, bg_gauss_kernel_size=11, 
-                 dilate_kernel_size=32):
+    def __init__(self, parent:ParentImageClass, bee_ID:int, contour, 
+                 bg_gauss_kernel_size=11, dilate_kernel_size=32):
         self.parent = parent
         self.bee_ID = bee_ID
         self.focus_size = self.parent._focus_size
         
+        self.set_contour(contour)
+        
         self.set_bg_gauss_kernel_size(bg_gauss_kernel_size)
         self.set_dilate_kernel_size(dilate_kernel_size)
         
-        
+        #perform making the focus image
+        self.fetch_roi_img()
+        self.generate_focus_img()
         
         pass
     
@@ -143,7 +147,7 @@ class BeeFocusImage:
         self.pos_center_parent = (cx,cy)
         pass
     
-    def fetch_focus_img(self):
+    def fetch_roi_img(self):
         fw,fh = self.focus_size                 # w,h of focus img
         pw,ph = self.parent._ILO._scale_dim     # w,h of parent img
         cx,cy = self.pos_center_parent          # center position of contour
@@ -1028,7 +1032,7 @@ if __name__== "__main__":
         
         
         myBee.set_contour(c0)
-        myBee.fetch_focus_img()
+        myBee.fetch_roi_img()
         
         cv2.imshow("1",myPar._img)
         cv2.imshow("2",myPar._orig_img)
