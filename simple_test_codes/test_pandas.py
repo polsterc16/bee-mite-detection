@@ -140,14 +140,48 @@ df = pd.DataFrame(columns=columns)
 print(df.info())
 
 
+#%% test appending
+
+cols_parent =  ["src_index",
+                "src_fname",
+                "src_fpath",
+                "roi_fpath",
+                "contours_raw",
+                "contours_valid",
+                "children_names"]
+
+cols_focus =   ["index",
+                "fname",
+                # "fpath",
+                # "parent_index",
+                # "parent_fname",
+                # "parent_fpath",
+                # "roi_fpath",
+                # "pos_center",
+                # "pos_anchor",
+                # "minAreaRect"
+                ]
+
+df_parent = pd.DataFrame(columns=cols_parent)
+df_focus =  pd.DataFrame(columns=cols_focus)
 
 
+focus =    {"index":0,
+            "fname":"asdasd",
+            # "fpath":"asdasd",
+            # "parent_index":0,
+            # "parent_fname":"asdasd",
+            # "parent_fpath":"wqewedas",
+            # "roi_fpath":"sdfsdfs",
+            # "pos_center":(1,2),
+            # "pos_anchor":(3,6),
+            # "minAreaRect":((1,1),(2,2),10)
+            }
+# df_focus.loc[0] = focus
+new_row = pd.Series(focus)
+df_focus=df_focus.append(new_row,ignore_index=True)
 
-
-
-
-
-
+print(df_focus.info())
 
 
 
