@@ -10,6 +10,8 @@ PURPOSE: Find appropriate filters that allow for finding regions containing Bees
 
 # Based on V_01/test_12.py
 
+Switch between branches with 'git checkout <branch>'
+
 
 
 """
