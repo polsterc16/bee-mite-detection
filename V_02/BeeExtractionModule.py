@@ -29,6 +29,7 @@ import matplotlib as mpl
 import pandas as pd
 import os
 import time
+import math
 
 from tqdm import tqdm
 
@@ -954,6 +955,7 @@ class BeeExtractionHandler:
         self._df_fname_parent_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_parent))
         self._df_fname_focus_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_focus))
         self._df_fname_focus_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_focus))
+        self._txt_last_index_fname = os.path.join(path_dir, "last_index.txt")
         
         # We will load from the [comma] separated value files
         fparent_exists = os.path.isfile(self._df_fname_parent_csv)
@@ -996,6 +998,22 @@ class BeeExtractionHandler:
         self._df_focus.to_csv(self._df_fname_focus_scsv, sep=";")
         pass
     
+    def write_last_index_to_file(self):
+        """writes current index to txt"""
+        with open(self._txt_last_index_fname,"w") as f:
+            f.write(str(self._index))
+        pass
+    
+    def read_last_index_to_file(self) -> int:
+        """read last index from txt"""
+        index = -1 #default assignment
+        try:
+            with open(self._txt_last_index_fname,"r") as f:
+                index = int(f.readline())
+        except:
+            pass
+        return index
+    
     
     # -------------------------------------------------------------------------
     # PROCESSING functions
@@ -1003,6 +1021,9 @@ class BeeExtractionHandler:
     def p_process(self,start_index:int, times=1, prepare_len=10) -> int:
         self.check_startup(True)
         # check if index possible
+        if type(start_index)==type(None):
+            start_index = self.read_last_index_to_file()
+        
         if (start_index < 0) or (start_index >= self.src_len):
             raise Exception("Index is outside of list size.")
             return -1
@@ -1025,31 +1046,70 @@ class BeeExtractionHandler:
         BIC = self._BIC
         path_extr = self.get_path_extracted()
         
-        for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
-            # create parent class object
-            parent = ParentImageClass(ILC, BIC, self._index, path_extr)
-            ds_dict = parent.get_dataseries_dict()
-            ds_parent = ds_dict["parent"]
-            ds_child_list = ds_dict["children"]
+        if times <= 100:
+            for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
+                # create parent class object
+                parent = ParentImageClass(ILC, BIC, self._index, path_extr)
+                ds_dict = parent.get_dataseries_dict()
+                ds_parent = ds_dict["parent"]
+                ds_child_list = ds_dict["children"]
+                
+                self._df_parent.loc[self._index] = ds_parent
+                
+                for ds in ds_child_list:
+                    new_series = pd.Series(ds,name=ds["fname"])
+                    self._df_focus=self._df_focus.append(new_series)
+    
+                temp = self._df_focus
+                # print(self._df_parent.info())
+                # print(self._df_focus.info())
+                
+                self.p_BIC_goto_index_before(self._index)
+                self._index += 1 #inc index
+                
+                # Stop, if the last img has been reached
+                if (self._index + 1) >= self.src_len: break
+                pass
             
-            self._df_parent.loc[self._index] = ds_parent
-            
-            for ds in ds_child_list:
-                new_series = pd.Series(ds,name=ds["fname"])
-                self._df_focus=self._df_focus.append(new_series)
-
-            temp = self._df_focus
-            # print(self._df_parent.info())
-            # print(self._df_focus.info())
-            
-            self.p_BIC_goto_index_before(self._index)
-            self._index += 1 #inc index
-            
-            # Stop, if the last img has been reached
-            if (self._index + 1) >= self.src_len: break
-            pass
+            self.df_store()
+            self.write_last_index_to_file()
+        else:
+            j=0
+            supertime = math.ceil(times/100)
+            for i in range(supertime):
+                # print("\nIteration package {}/{} (from {})".format(i+1, supertime, self._index))
+                
+                for k in tqdm(range( min([100,times-j-1]) ),desc="Iteration package {}/{} (from {: 4})".format(i+1, supertime, self._index)):
+                    # create parent class object
+                    parent = ParentImageClass(ILC, BIC, self._index, path_extr)
+                    ds_dict = parent.get_dataseries_dict()
+                    ds_parent = ds_dict["parent"]
+                    ds_child_list = ds_dict["children"]
+                    
+                    self._df_parent.loc[self._index] = ds_parent
+                    
+                    for ds in ds_child_list:
+                        new_series = pd.Series(ds,name=ds["fname"])
+                        self._df_focus=self._df_focus.append(new_series)
         
-        self.df_store()
+                    temp = self._df_focus
+                    # print(self._df_parent.info())
+                    # print(self._df_focus.info())
+                    
+                    self.p_BIC_goto_index_before(self._index)
+                    self._index += 1 #inc index
+                    
+                    # Stop, if the last img has been reached
+                    if (self._index + 1) >= self.src_len: break
+                    pass
+                    
+                    j+=1
+                    if j>=times: break
+                
+                self.df_store()
+                self.write_last_index_to_file()
+                if j>=times: break
+            
         return self._index
     
     def p_BIC_jump_to_index_before_reset(self,index:int, prepare_len=10) -> int:
@@ -1103,256 +1163,256 @@ class BeeExtractionHandler:
     
     
     
-    # TODO: Update if necessaray
-    def init_df(self,list_cols):
-        assert type(list_cols) in [list, tuple]
-        self.df = pd.DataFrame(columns=list_cols)
-        pass
+    # # TODO: Update if necessaray
+    # def init_df(self,list_cols):
+    #     assert type(list_cols) in [list, tuple]
+    #     self.df = pd.DataFrame(columns=list_cols)
+    #     pass
     
     
     
     
-    # EXECUTION of Image Extraction -------------------------------------------
+    # # EXECUTION of Image Extraction -------------------------------------------
     
-    # Done
-    def restart(self, prepare_time=5):
-        """
-        Resets index. Sets first image as the Background image. \
-        Loads the next x images to generate a more 'realistic' background image. \
-        Resets Index.
+    # # Done
+    # def restart(self, prepare_time=5):
+    #     """
+    #     Resets index. Sets first image as the Background image. \
+    #     Loads the next x images to generate a more 'realistic' background image. \
+    #     Resets Index.
 
-        Parameters
-        ----------
-        prepare_time : : INTEGER, optional
-            How many images to load for generating the initial background image. \
-            The default is 5.
-        """
-        print()
-        print("-- Restarting Handler")
+    #     Parameters
+    #     ----------
+    #     prepare_time : : INTEGER, optional
+    #         How many images to load for generating the initial background image. \
+    #         The default is 5.
+    #     """
+    #     print()
+    #     print("-- Restarting Handler")
         
-        # 1 : load the first image
-        self.img_index = 0
-        self.load_img(self.img_index)
+    #     # 1 : load the first image
+    #     self.img_index = 0
+    #     self.load_img(self.img_index)
         
-        # 2 : perform weighted mean (set current image as background)
-        self.add_to_background_img(self.img["00 src"], overwrite=True)
+    #     # 2 : perform weighted mean (set current image as background)
+    #     self.add_to_background_img(self.img["00 src"], overwrite=True)
         
-        # 3 : use the first 'prepare_time' number of images to get a usaable background
-        assert prepare_time >= 0 # We need a positive number of times to repeat this
+    #     # 3 : use the first 'prepare_time' number of images to get a usaable background
+    #     assert prepare_time >= 0 # We need a positive number of times to repeat this
         
-        # usage of loading bar indicator (#tqdm)
-        for i in tqdm(range(prepare_time), desc="Restart: Preparing Background image"):
-            # Repeated loading of images to generate a better BG image for the beginning
-            self.load_img(self.img_index)
-            self.add_to_background_img(self.img["00 src"])
-            self.img_index += 1 
+    #     # usage of loading bar indicator (#tqdm)
+    #     for i in tqdm(range(prepare_time), desc="Restart: Preparing Background image"):
+    #         # Repeated loading of images to generate a better BG image for the beginning
+    #         self.load_img(self.img_index)
+    #         self.add_to_background_img(self.img["00 src"])
+    #         self.img_index += 1 
         
-        self.img_index = 0      # reset index
-        pass
+    #     self.img_index = 0      # reset index
+    #     pass
     
     
-    # TODO: Update if necessaray
-    def iterate(self, times = 1):
-        """
-        This function will perform ALL extraction steps for the set number \
-        of images. (incremental increase from the current index) """
-        assert times>0  # MUST be a number >= 1 !!!
+    # # TODO: Update if necessaray
+    # def iterate(self, times = 1):
+    #     """
+    #     This function will perform ALL extraction steps for the set number \
+    #     of images. (incremental increase from the current index) """
+    #     assert times>0  # MUST be a number >= 1 !!!
         
-        # try:
-        for i in range(times):
-            # 10 : increment the index and check if index is still inside the list
-            self.img_index += 1
-            if (self.img_index >= self.ILO._size):
-                print("No more Iterations possible. \
-                      Index has reached end of img_name_list.")
-                return
+    #     # try:
+    #     for i in range(times):
+    #         # 10 : increment the index and check if index is still inside the list
+    #         self.img_index += 1
+    #         if (self.img_index >= self.ILO._size):
+    #             print("No more Iterations possible. \
+    #                   Index has reached end of img_name_list.")
+    #             return
             
-            # 20 : update weighted mean with last image (BEFORE loading a new image)
-            self.add_to_background_img(img_new=self.img["00 src"])
+    #         # 20 : update weighted mean with last image (BEFORE loading a new image)
+    #         self.add_to_background_img(img_new=self.img["00 src"])
             
-            # 30 : load the current image
-            self.load_img(self.img_index)
+    #         # 30 : load the current image
+    #         self.load_img(self.img_index)
             
-            # 40 : calc difference from blurr to mean
-            self.difference_from_BG(source=self.img["00 src"]) # => self.img["10 diff"]
+    #         # 40 : calc difference from blurr to mean
+    #         self.difference_from_BG(source=self.img["00 src"]) # => self.img["10 diff"]
             
             
-            # 50 : threshold of the difference
-            otsu_th = self.threshold_diff(source=self.img["10 diff"]) # => self.img["20 threshold"]
+    #         # 50 : threshold of the difference
+    #         otsu_th = self.threshold_diff(source=self.img["10 diff"]) # => self.img["20 threshold"]
             
-            # 60 : Check, if otsu threshold may be empty
-            if otsu_th < self.otsu_min_threshold:
-                # THIS IMAGE IS EMPTY!!! STOP HERE!
-                print("empty image")
+    #         # 60 : Check, if otsu threshold may be empty
+    #         if otsu_th < self.otsu_min_threshold:
+    #             # THIS IMAGE IS EMPTY!!! STOP HERE!
+    #             print("empty image")
                 
-            else:
+    #         else:
             
-                # gaussian blurr
-                self.reduce_open_close(source=self.img["20 threshold"], DEBUG=True) # => self.img["30 reduced"]
+    #             # gaussian blurr
+    #             self.reduce_open_close(source=self.img["20 threshold"], DEBUG=True) # => self.img["30 reduced"]
                 
-                raise Exception("DEBUG stop")
-                
-                
-                # selection and seperation
-                self.get_contours_reduced(source=self.img["30 reduced"])
+    #             raise Exception("DEBUG stop")
                 
                 
-                self.extract_from_contours(source_contours=self.cont_good, \
-                                           source_img=self.img_set_resize, \
-                                           orig_img=self.img_set_original)
+    #             # selection and seperation
+    #             self.get_contours_reduced(source=self.img["30 reduced"])
+                
+                
+    #             self.extract_from_contours(source_contours=self.cont_good, \
+    #                                        source_img=self.img_set_resize, \
+    #                                        orig_img=self.img_set_original)
             
             
-            # dilate
-            # self.dilation(source=self.img_set_reduced)
+    #         # dilate
+    #         # self.dilation(source=self.img_set_reduced)
             
-            # #overlay
-            # self.overlay(source=self.img_set_resize)
-            # self.draw_contours_reduced(target=self.img_set_mask_RGB)
+    #         # #overlay
+    #         # self.overlay(source=self.img_set_resize)
+    #         # self.draw_contours_reduced(target=self.img_set_mask_RGB)
             
-            pass
-        path = self.prop_path_extracted + "Extracted.csv"
-        self.df.to_csv(path,sep=";")
-        pass
+    #         pass
+    #     path = self.prop_path_extracted + "Extracted.csv"
+    #     self.df.to_csv(path,sep=";")
+    #     pass
     
     
-    # ADDITION of Plotting ----------------------------------------------------
+    # # ADDITION of Plotting ----------------------------------------------------
     
-    # TODO: Update if necessaray
-    def iter_and_plot(self, times = 1):
-        self.iterate(times)        
-        plt.close('all')
+    # # TODO: Update if necessaray
+    # def iter_and_plot(self, times = 1):
+    #     self.iterate(times)        
+    #     plt.close('all')
         
-        self.fig, self.ax = plt.subplots( 3,2 )
+    #     self.fig, self.ax = plt.subplots( 3,2 )
         
-        # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        row,col = 0,0
-        title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
-        self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
-        # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    #     row,col = 0,0
+    #     title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
+    #     self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
+    #     # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
         
-        row,col = 0,1
-        title = "mean"
-        self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     row,col = 0,1
+    #     title = "mean"
+    #     self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
-        row,col = 1,0
-        title = "diff"
-        self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     row,col = 1,0
+    #     title = "diff"
+    #     self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
-        row,col = 1,1
-        title = "thres"
-        self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     row,col = 1,1
+    #     title = "thres"
+    #     self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
-        row,col = 2,0
-        title = "gauss reduced"
-        self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     row,col = 2,0
+    #     title = "gauss reduced"
+    #     self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
-        row,col = 2,1
-        title = "dilated"
-        self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray') 
-        self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
+    #     row,col = 2,1
+    #     title = "dilated"
+    #     self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray') 
+    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
         
-        #adding buttons
-        plt.subplots_adjust(top=0.9)
-        plt.subplots_adjust(bottom=0,left=0,right=1)
+    #     #adding buttons
+    #     plt.subplots_adjust(top=0.9)
+    #     plt.subplots_adjust(bottom=0,left=0,right=1)
         
-        ax_textbox = plt.axes([0.05, 0.94, 0.1, 0.05])
-        ax_iter_x =  plt.axes([0.25, 0.94, 0.2, 0.05]) #posx, posy, width, height
-        ax_iter_10 = plt.axes([0.50, 0.94, 0.2, 0.05])
-        ax_iter_20 = plt.axes([0.75, 0.94, 0.2, 0.05])
+    #     ax_textbox = plt.axes([0.05, 0.94, 0.1, 0.05])
+    #     ax_iter_x =  plt.axes([0.25, 0.94, 0.2, 0.05]) #posx, posy, width, height
+    #     ax_iter_10 = plt.axes([0.50, 0.94, 0.2, 0.05])
+    #     ax_iter_20 = plt.axes([0.75, 0.94, 0.2, 0.05])
         
-        self.text_box_iter = mpl.widgets.TextBox(ax_textbox, "Iter","1")
-        self.text_box_iter.on_text_change(self.txt_change)
+    #     self.text_box_iter = mpl.widgets.TextBox(ax_textbox, "Iter","1")
+    #     self.text_box_iter.on_text_change(self.txt_change)
         
-        self.but_iter_x_value = 1 ##########
-        self.but_iter_x =  mpl.widgets.Button(ax_iter_x,  "Iter({})".format(str(self.but_iter_x_value)) )
+    #     self.but_iter_x_value = 1 ##########
+    #     self.but_iter_x =  mpl.widgets.Button(ax_iter_x,  "Iter({})".format(str(self.but_iter_x_value)) )
         
-        self.but_iter_10 = mpl.widgets.Button(ax_iter_10, "Iter(10)")
-        self.but_iter_20 = mpl.widgets.Button(ax_iter_20, "Iter(20)")
-        self.but_iter_x.on_clicked(self.on_click_iter_x)
-        self.but_iter_10.on_clicked(self.on_click_iter_10)
-        self.but_iter_20.on_clicked(self.on_click_iter_20)
-        self.but_iter_x.color = 'cyan'
-        self.but_iter_10.color = 'cyan'
-        self.but_iter_20.color = 'cyan'
-        pass
+    #     self.but_iter_10 = mpl.widgets.Button(ax_iter_10, "Iter(10)")
+    #     self.but_iter_20 = mpl.widgets.Button(ax_iter_20, "Iter(20)")
+    #     self.but_iter_x.on_clicked(self.on_click_iter_x)
+    #     self.but_iter_10.on_clicked(self.on_click_iter_10)
+    #     self.but_iter_20.on_clicked(self.on_click_iter_20)
+    #     self.but_iter_x.color = 'cyan'
+    #     self.but_iter_10.color = 'cyan'
+    #     self.but_iter_20.color = 'cyan'
+    #     pass
     
-    # TODO: Update if necessaray
-    def txt_change(self,event):
-        print("txt_change:",str(event))
-        print("max:",str(self.img_name_list_length-self.img_index-1))
-        self.txt_change_event = event
+    # # TODO: Update if necessaray
+    # def txt_change(self,event):
+    #     print("txt_change:",str(event))
+    #     print("max:",str(self.img_name_list_length-self.img_index-1))
+    #     self.txt_change_event = event
         
-        if event.isnumeric():
-            temp = int(event)
-            # print("temp:",temp)
+    #     if event.isnumeric():
+    #         temp = int(event)
+    #         # print("temp:",temp)
             
-            if temp < 1:
-                temp=1
-            if temp > (self.img_name_list_length-self.img_index-1):
-                temp = self.img_name_list_length-self.img_index-1
-            # print("temp:",temp)
-            self.but_iter_x_value = temp
-        self.text_box_iter.set_val(str(self.but_iter_x_value))
+    #         if temp < 1:
+    #             temp=1
+    #         if temp > (self.img_name_list_length-self.img_index-1):
+    #             temp = self.img_name_list_length-self.img_index-1
+    #         # print("temp:",temp)
+    #         self.but_iter_x_value = temp
+    #     self.text_box_iter.set_val(str(self.but_iter_x_value))
         
-        self.but_iter_x.label.set_text( "Iter({})".format(str(self.but_iter_x_value)) )
-        self.fig.canvas.draw()
-        # print("done txt box")
-        pass
+    #     self.but_iter_x.label.set_text( "Iter({})".format(str(self.but_iter_x_value)) )
+    #     self.fig.canvas.draw()
+    #     # print("done txt box")
+    #     pass
     
-    # TODO: Update if necessaray
-    def on_click_iter_x(self,event):
-        print("on_click_iter_x:",str(self.but_iter_x_value))
-        self.iter_and_plot_update(self.but_iter_x_value)
-        pass
-    # TODO: Update if necessaray
-    def on_click_iter_10(self,event):
-        print("on_click_iter_10")
-        self.iter_and_plot_update(10)
-        pass
-    # TODO: Update if necessaray
-    def on_click_iter_20(self,event):
-        print("on_click_iter_20")
-        self.iter_and_plot_update(20)
-        pass
+    # # TODO: Update if necessaray
+    # def on_click_iter_x(self,event):
+    #     print("on_click_iter_x:",str(self.but_iter_x_value))
+    #     self.iter_and_plot_update(self.but_iter_x_value)
+    #     pass
+    # # TODO: Update if necessaray
+    # def on_click_iter_10(self,event):
+    #     print("on_click_iter_10")
+    #     self.iter_and_plot_update(10)
+    #     pass
+    # # TODO: Update if necessaray
+    # def on_click_iter_20(self,event):
+    #     print("on_click_iter_20")
+    #     self.iter_and_plot_update(20)
+    #     pass
     
     
-    # TODO: Update if necessaray
-    def iter_and_plot_update(self, times = 1):
-        self.iterate(times)        
-        # plt.close('all')
+    # # TODO: Update if necessaray
+    # def iter_and_plot_update(self, times = 1):
+    #     self.iterate(times)        
+    #     # plt.close('all')
         
-        # fig,ax = plt.subplots( 2,2 )
+    #     # fig,ax = plt.subplots( 2,2 )
         
         
-        row,col = 0,0
-        title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
-        self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
-        # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
-        self.ax[row,col].title.set_text(title)
+    #     row,col = 0,0
+    #     title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
+    #     self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
+    #     # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
+    #     self.ax[row,col].title.set_text(title)
         
-        row,col = 0,1
-        self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
+    #     row,col = 0,1
+    #     self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
         
-        row,col = 1,0
-        self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
+    #     row,col = 1,0
+    #     self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
         
-        row,col = 1,1
-        self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
+    #     row,col = 1,1
+    #     self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
         
-        row,col = 2,0
-        self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
+    #     row,col = 2,0
+    #     self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
         
-        row,col = 2,1
-        self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray')
+    #     row,col = 2,1
+    #     self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray')
         
-        plt.draw()
-        pass
+    #     plt.draw()
+    #     pass
 
 
 # %%
@@ -1430,7 +1490,7 @@ if __name__== "__main__":
         myB.set_BIC_properties()
         
         #%%
-        myB.p_process(0,1000)
+        myB.p_process(None,125)
         
         pass
     
