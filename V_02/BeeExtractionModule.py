@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
 import os
+import time
 
 from tqdm import tqdm
 
@@ -41,6 +42,7 @@ class BackgroundImageClass:
     def __init__(self, ILO, start_index=0, alpha_weight=0.05):
         self._ILO = ILO
         self.set_alpha_weight(alpha_weight)
+        self._index=0
         
         self.reset(times=1)
         pass
@@ -79,6 +81,8 @@ class BackgroundImageClass:
         
         img_new = self._ILO.get_img(index)      # load new image
         self.img_bg = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
+        
+        self._index = index
         pass
     
     def update_bg(self,start_index:int, times=1):
@@ -108,6 +112,8 @@ class BackgroundImageClass:
         # weighted accumulation
         assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
         cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
+        
+        self._index = index
         pass
     
     def get_bg_diff(self,img,inverse=True):
@@ -186,8 +192,8 @@ class ParentImageClass:
         self.img = dict()
         
         
-        self.process_1(DEBUG=True)
-        self.process_2(DEBUG=True, debug_img=True)
+        self.process_1(DEBUG=DEBUG)
+        self.process_2(DEBUG=DEBUG)
         self.process_3()
         
         
@@ -564,7 +570,7 @@ class ParentImageClass:
         parent_series = { "src_index":  self._index,
                           "src_fname":  self._fname_parent, 
                           "src_fpath":  self._path_parent, 
-                          "roi_path":   self.path_img_roi, 
+                          "roi_fpath":   self.path_img_roi, 
                           "contours_raw":   len(self.contour_list_raw),
                           "contours_valid": len(self.contour_list_valid), 
                           "children_names": [n for n,p in self.path_bee_focus]
@@ -587,7 +593,7 @@ class ParentImageClass:
                           "parent_index": self._index,
                           "parent_fname": self._fname_parent,
                           "parent_fpath": self._path_parent, 
-                          "roi_path":   self.path_img_roi, 
+                          "roi_fpath":   self.path_img_roi, 
                           "pos_center": pos_center,
                           "pos_anchor": pos_anchor,
                           "minAreaRect": minAreaRect
@@ -870,12 +876,232 @@ class BeeFocusImage:
 
 #%%
 class BeeExtractionHandler:
-    def __init__(self, path_src_img, maxFiles=0, extension_list=("png",), ):
+    def __init__(self, path_extraction ):
         self._startup = 0
+        self._startup_target = 3 #must be the highest integer assigned by the startup functions
         
-        self._IFC = IHM.ImageFinderClass(path_src_img, maxFiles=maxFiles, acceptedExtensionList=extension_list)
+        self._index = 0
+        self.set_path_extracted(path_extraction)
+        self.df_startup()
         
         pass
+    
+    # -------------------------------------------------------------------------
+    # STARTUP functions 
+    # -------------------------------------------------------------------------
+    def set_path_extracted(self,path_extracted):
+        """Sets the directory path to save all extracted information to."""
+        assert (type(path_extracted) == str)    # ensure that path is a string
+        
+        # Stop object creation, if no valid file path is given
+        if os.path.isdir(path_extracted) == False:
+            raise Exception("Requires a legal directory path!")
+        
+        self._path_extracted = os.path.abspath(path_extracted)
+        pass
+    
+    def get_path_extracted(self):
+        """Returns the directory path to where all extracted information shall be stored at."""
+        return str(self._path_extracted)
+    
+    def set_IFC_properties(self, src_img_path, src_max_files=0, src_extension_list=("png",)):
+        """Sets the ImageFinderClass."""
+        self._IFC = IHM.ImageFinderClass(src_img_path, src_extension_list, src_max_files)
+        self.src_len = self._IFC.size # number of imgs in ILC
+        
+        self._startup = 1 # IFC freshly set
+        pass
+    
+    def set_ILC_properties(self, img_dim=(400,300), img_mask_rel=(0,0,1,1), img_resize=False):
+        """Sets the ImageLoaderClass."""
+        if self._startup < 1:
+            print("Call 'set_IFC_properties' first!")
+            return 0
+        
+        self._ILC = IHM.ImageLoaderClass(self._IFC, dim=img_dim, 
+                                         mask_rel=img_mask_rel, 
+                                         resize_en=img_resize, 
+                                         grayscale_en=True)
+
+        self._startup = 2 # ILC freshly set
+        pass
+    
+    def set_BIC_properties(self, start_index=0, alpha=0.1):
+        """Sets the BackgroundImageClass."""
+        if self._startup < 2:
+            print("Call 'set_ILC_properties' first!")
+            return 0
+        
+        self._BIC = BackgroundImageClass(self._ILC, start_index, alpha)
+        self._startup = 3 # BIC freshly set
+        pass
+    
+    def check_startup(self, except_en=True):
+        """Returns True, if the startup is complete. Can throw an exception if False."""
+        if self._startup == self._startup_target:
+            return True
+        else:
+            if except_en: raise Exception("Startup not complete!")
+            return False
+        pass
+    
+    def df_startup(self):
+        fname_parent = "Parent"
+        fname_focus =  "Focus"
+        
+        path_dir = self.get_path_extracted()
+        self._df_fname_parent_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_parent))
+        self._df_fname_parent_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_parent))
+        self._df_fname_focus_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_focus))
+        self._df_fname_focus_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_focus))
+        
+        # We will load from the [comma] separated value files
+        fparent_exists = os.path.isfile(self._df_fname_parent_csv)
+        ffocus_exists =  os.path.isfile(self._df_fname_focus_csv)
+        
+        if fparent_exists:
+            self._df_parent = pd.read_csv(self._df_fname_parent_csv)
+        else:
+            cols_parent =  ["src_index",
+                            "src_fname",
+                            "src_fpath",
+                            "roi_fpath",
+                            "contours_raw",
+                            "contours_valid",
+                            "children_names"]
+            self._df_parent = pd.DataFrame(columns=cols_parent)
+            pass
+        
+        if ffocus_exists:
+            self._df_focus = pd.read_csv(self._df_fname_focus_csv)
+        else:
+            cols_focus =   ["index",
+                            "fname",
+                            "fpath",
+                            "parent_index",
+                            "parent_fname",
+                            "parent_fpath",
+                            "roi_fpath",
+                            "pos_center",
+                            "pos_anchor",
+                            "minAreaRect"]
+            self._df_focus = pd.DataFrame(columns=cols_focus)
+            pass
+    
+    def df_store(self):
+        
+        self._df_parent.to_csv(self._df_fname_parent_csv,  sep=",")
+        self._df_parent.to_csv(self._df_fname_parent_scsv, sep=";")
+        self._df_focus.to_csv(self._df_fname_focus_csv,  sep=",")
+        self._df_focus.to_csv(self._df_fname_focus_scsv, sep=";")
+        pass
+    
+    
+    # -------------------------------------------------------------------------
+    # PROCESSING functions
+    # -------------------------------------------------------------------------
+    def p_process(self,start_index:int, times=1, prepare_len=10) -> int:
+        self.check_startup(True)
+        # check if index possible
+        if (start_index < 0) or (start_index >= self.src_len):
+            raise Exception("Index is outside of list size.")
+            return -1
+        self._index = start_index
+        
+        if times < 1: times=1   # ignore iterations less than 1
+        
+        # set up the BIC
+        self.p_BIC_jump_to_index_before_reset(start_index, prepare_len)
+        
+        # iterate 
+        ret = self.p_process_iterate(times)
+        return self._index
+    
+    def p_process_iterate(self,times=1) -> int:
+        self.check_startup(True)
+        if times < 1: times = 1
+        
+        ILC = self._ILC
+        BIC = self._BIC
+        path_extr = self.get_path_extracted()
+        
+        for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
+            # create parent class object
+            parent = ParentImageClass(ILC, BIC, self._index, path_extr)
+            ds_dict = parent.get_dataseries_dict()
+            ds_parent = ds_dict["parent"]
+            ds_child_list = ds_dict["children"]
+            
+            self._df_parent.loc[self._index] = ds_parent
+            
+            for ds in ds_child_list:
+                new_series = pd.Series(ds,name=ds["fname"])
+                self._df_focus=self._df_focus.append(new_series)
+
+            temp = self._df_focus
+            # print(self._df_parent.info())
+            # print(self._df_focus.info())
+            
+            self.p_BIC_goto_index_before(self._index)
+            self._index += 1 #inc index
+            
+            # Stop, if the last img has been reached
+            if (self._index + 1) >= self.src_len: break
+            pass
+        
+        self.df_store()
+        return self._index
+    
+    def p_BIC_jump_to_index_before_reset(self,index:int, prepare_len=10) -> int:
+        """Will perform a reset of the BIC image and update it 'prepare_len' times.
+        
+        It will try to start resetting before the specified index (at index-1), but will update ahead, if not otherwise possible.
+        
+        Returns the index which was last used to update the BIC image. (Returns -1 in case of error)"""
+        self.check_startup(True)
+        
+        if (index < 0) or (index >= self.src_len):
+            print("Index is outside of list size.")
+            return -1
+        
+        if prepare_len < 0: prepare_len = 0 # ignore negative prepare_len
+        
+        index_bic = index - 1 - prepare_len
+        if index_bic < 0: index_bic = 0     # ignore negative start positions
+        
+        self._BIC.reset(index_bic, prepare_len)
+        
+        return self._BIC._index #return the index the BIC is currently at
+    
+    def p_BIC_goto_index_before(self,index:int) -> int:
+        """Will update the BIC image with the image before the specified index (index-1), if possible.
+        
+        Returns the index which was last used to update the BIC image. (Returns -1 in case of error)"""
+        self.check_startup(True)
+        
+        if (index < 0) or (index >= self.src_len):
+            print("Index is outside of list size.")
+            return -1
+        
+        index_bic = index - 1 
+        if index_bic < 0: index_bic = 0     # ignore negative start positions
+        
+        self._BIC.update_bg(index_bic)
+        
+        return self._BIC._index #return the index the BIC is currently at
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     # TODO: Update if necessaray
     def init_df(self,list_cols):
@@ -1152,6 +1378,7 @@ if __name__== "__main__":
     # Window Cleanup
     cv2.destroyAllWindows()
     plt.close('all')
+    time.sleep(0.1)
     
     TEST = 2
     # %%
@@ -1195,9 +1422,15 @@ if __name__== "__main__":
         plt.close('all')
         
         path_src = "D:\\ECM_PROJECT\\bee_images_small"
-        path_extr = "/extracted/"
+        path_extr = "extracted"
         
-        myB = BeeExtractionHandler(path_src, 200)
+        myB = BeeExtractionHandler(path_extr)
+        myB.set_IFC_properties(path_src,0)
+        myB.set_ILC_properties(img_mask_rel=(0.1,0,1,1))
+        myB.set_BIC_properties()
+        
+        #%%
+        myB.p_process(0,1000)
         
         pass
     
