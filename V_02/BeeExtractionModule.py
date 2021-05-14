@@ -1492,7 +1492,13 @@ if __name__== "__main__":
         myB.set_BIC_properties()
         
         #%%
-        myB.p_process(0,100)
+        number = 14303
+        import datetime
+        t1 = datetime.datetime.now()
+        myB.p_process(0,number)
+        t2 = datetime.datetime.now()
+        dt = (t2-t1).total_seconds()
+        speed = number/dt
         
         pass
     
