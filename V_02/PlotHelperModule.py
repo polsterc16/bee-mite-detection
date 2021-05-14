@@ -103,6 +103,8 @@ class SimpleImageViewer:
             for j in range(self.n_cols):
                 index_list.append((i,j))
         index_length = len(index_list)
+        # if index_length==2:
+        #     print("2")
         
         if (self.n_rows == 1) and  (self.n_cols == 1):
             index_list = [0,]
