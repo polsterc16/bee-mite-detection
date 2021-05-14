@@ -233,12 +233,13 @@ class ParentImageClass:
     def process_2(self, DEBUG=False, debug_img=False):
         """(Generate debug images,) Check for valid area sizes of contours,
         Generate bee_focus objects."""
-        if debug_img:   self.p31_contours_debug(DEBUG=DEBUG);
-        else:           self.img["31 debug"] = None; pass
+        # if debug_img:   self.p31_contours_debug(DEBUG=DEBUG);
+        # else:           self.img["31 debug"] = None; pass
         
         self.p40_contours_check(DEBUG=DEBUG)
         
         self.p50_generate_focus_imgs()
+        self.p51_generate_roi_img()
         pass
     
     def process_3(self, DEBUG=False):
@@ -331,6 +332,7 @@ class ParentImageClass:
     
     def p31_contours_debug(self, DEBUG=False):
         """Creates a debug image after getting the contours"""
+        raise Exception("Do not use this anymore!")
     
         # fetch gray source image
         img = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
@@ -422,13 +424,127 @@ class ParentImageClass:
                                                   self._focus_dilate_kernel_size))
         return len(self.child_list)
     
+    def p51_generate_roi_img(self, DEBUG=False):
+        """Adds all detected regeins from 'reduced' img with index and are information. 
+        Adds box around 'focus 'imgs."""
+        # fetch gray source image
+        img_bg = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
+        img_bg_f = np.float32(img_bg)
+        
+        
+        # img for foreground overlay, which will be weighted added
+        img_overlay = np.zeros(img_bg.shape,dtype=np.uint8)
+        if len(self.contour_list_raw) == 0: 
+            # write the threshold img to the red channel
+            img_overlay[:,:,2] = self.img["20 threshold"].copy() 
+            # and thats it - no more information
+        else:
+            # write the reduced img to the red channel
+            img_overlay[:,:,2] = self.img["25 reduced"].copy() 
+            
+            # draw dilated region and box for every bee in child list
+            for bee in self.child_list:
+                # Draw dilated contour to GREEN channel and remove all parts where there is something in RED channel
+                t1 = img_overlay[:,:,1].copy()
+                img_overlay[:,:,1] = cv2.drawContours(t1, [bee.contour_dilate], -1, 255, -1)
+                
+                _,temp = cv2.threshold( np.int16(img_overlay[:,:,1]) - np.int16(img_overlay[:,:,2]) , 0, 255, cv2.THRESH_BINARY)
+                img_overlay[:,:,1] = np.uint8(temp)
+    
+                # draw the rect of the focus img in BLUE channel
+                a1 = bee.pos_anchor
+                a2 = (a1[0] + bee.focus_size[0] - 1, a1[1] + bee.focus_size[1] - 1)
+                t2 = img_overlay[:,:,0].copy()
+                img_overlay[:,:,0] = cv2.rectangle(t2, a1, a2, 255, 2)
+                pass
+        
+        # generate overlay mask
+        img_overlay_mask = cv2.cvtColor(img_overlay, cv2.COLOR_BGR2GRAY)
+         
+        # Add overlay to bg img
+        cv2.accumulateWeighted(img_overlay, img_bg_f, 0.333, mask=img_overlay_mask)
+        
+        if DEBUG:
+            imgs = [img_bg,img_overlay]
+            labels = ["img","img_overlay"]
+            # mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p51_generate_roi_img",posX=1000)
+        # raise Exception()
+        
+        
+        
+        # if there are no contours, just make GRAY with THRESHOLD overlay the ROI image
+        if len(self.contour_list_raw) > 0: 
+            # img for foregrpund text, which will be OR-ed to the final image
+            img_txt = np.zeros(img_bg.shape,dtype=np.uint8)
+            # img for textbox background, which will darken the img behind the are text
+            img_txtbox = np.zeros(img_bg.shape,dtype=np.uint8)
+            
+            # Define TEXT properties
+            fontFace = cv2.FONT_HERSHEY_PLAIN 
+            txt_size = 1
+            (tx,ty),_=cv2.getTextSize("A", fontFace, txt_size, 2)
+            
+            # get min/max area sizes
+            a_min,a_max = self.parent_area_min_max
+            
+            # go though all contours
+            for i in range(len(self.contour_list_raw)):
+                c = self.contour_list_raw[i]
+                M = cv2.moments(c)
+                A = M["m00"]
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                
+                # check-symbol for area size
+                if A<a_min:     check = "-" # too small
+                elif (A>a_max): check = "X" # ok
+                else:           check = "+" # too big
+                txt_w = "{}: {} {}".format( i, int(A), check)
+                pos_w = (1,(i+1)*(ty+1)) # position moves down by (ty+1) for every new line
+                
+                # white text: write index and area to top left
+                a1,a2 = self.cv2_putText_box(img_txt, txt_w, pos_w, fontFace, txt_size, (255,255,255))
+                # immediately color in the txtbox area
+                cv2.rectangle(img_txtbox, a1, a2, (255,255,255), -1)
+                
+                # yellow text: write index to center of contour
+                cv2.putText(img_txt, str(i), (cx,cy), fontFace, txt_size, (0,255,255)) #yellow
+                pass
+            
+            # put the overlay on the BG
+            
+            # reduce img intensity where the textbox is
+            img_txtbox = cv2.dilate(img_txtbox, np.ones((5,5), dtype=np.uint8)) #widen the text box a bot
+            img_txtbox_inv = cv2.bitwise_not(img_txtbox)
+            # write inverse of textbox (black) to bg img (weighted) with the positive as a mask -> should only darken the textbox area
+            cv2.accumulateWeighted(img_txtbox_inv, img_bg_f, 0.5, mask=img_txtbox[:,:,0])
+            
+            img_bg = np.uint8(img_bg_f)
+            
+            # burn text into bg
+            img_bg = cv2.bitwise_or(img_bg, img_txt)
+            
+            if DEBUG:
+                imgs.append( img_bg )
+                labels.append( "img_bg" )
+                # mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p51_generate_roi_img",posX=1000)
+        
+        self.img["51 roi"] = img_bg
+        
+        if DEBUG:
+            mySIV = PHM.SimpleImageViewer(imgs, None, labels, "p51_generate_roi_img",posX=1000)
+        pass
+    
     def p60_save_imgs(self):
-        jpg_quality = 30
-        self.path_debug_img = np.NaN    # default assignment
+        img_roi = self.img["51 roi"]
+        folder_roi = "roi"
+        jpg_quality = 50
+        self.path_img_roi = np.NaN    # default assignment
+        
         # save the debug img, if exists (in really low quality, ofc)
-        if type(self.img["31 debug"]) != type(None):
-            self.path_debug_img = os.path.join(self.path_extracted, "DEBUG/{:06d}_debug.jpg".format(self._index))
-            cv2.imwrite(self.path_debug_img, self.img["31 debug"],[cv2.IMWRITE_JPEG_QUALITY,jpg_quality])
+        if type(img_roi) != type(None):
+            self.path_img_roi = os.path.join(self.path_extracted, folder_roi, "{:06d}_roi.jpg".format(self._index))
+            cv2.imwrite(self.path_img_roi, img_roi, [cv2.IMWRITE_JPEG_QUALITY,jpg_quality])
             pass
         
         self.path_bee_focus=[]
@@ -446,7 +562,7 @@ class ParentImageClass:
         parent_series = { "src_index":  self._index,
                           "src_fname":  self._fname_parent, 
                           "src_fpath":  self._path_parent, 
-                          "debug_path": self.path_debug_img, 
+                          "roi_path":   self.path_img_roi, 
                           "contours_raw":   len(self.contour_list_raw),
                           "contours_valid": len(self.contour_list_valid), 
                           "children_names": [n for n,p in self.path_bee_focus]
@@ -469,7 +585,7 @@ class ParentImageClass:
                           "parent_index": self._index,
                           "parent_fname": self._fname_parent,
                           "parent_fpath": self._path_parent, 
-                          "debug_path": self.path_debug_img, 
+                          "roi_path":   self.path_img_roi, 
                           "pos_center": pos_center,
                           "pos_anchor": pos_anchor,
                           "minAreaRect": minAreaRect
@@ -477,6 +593,17 @@ class ParentImageClass:
             self.ds_child_list.append(bee_series)
             pass
         pass
+    
+    
+    ### -----------------------------------------------------------------------
+    ### cv2 text functinos
+    ### -----------------------------------------------------------------------
+    def cv2_putText_box(self,img, text, pos, fontFace, fontScale, color, thickness=1, lineType=None, bottomLeftOrigin=None) -> ((int,int),(int,int)):
+        (tx,ty),_ = cv2.getTextSize(text, fontFace, fontScale, thickness)
+        cv2.putText(img, text, pos, fontFace, fontScale, color, thickness)
+        a1 = pos
+        a2 = (a1[0]+tx, a1[1]-ty)
+        return (a1,a2)
     
     
     ### -----------------------------------------------------------------------
@@ -1500,11 +1627,11 @@ if __name__== "__main__":
         myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
         
         myBGH = BackgroundImageClass(myILC,0,alpha_weight=0.1)
-        index=0
-        myBGH.reset(0,10)
-        myBGH.update_bg(0)
+        index=20
+        myBGH.reset(index-10,10)
+        myBGH.update_bg(index)
         
-        myPar = ParentImageClass(myILC,myBGH,index=index,path_extr=path_extr,
+        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
                                  open_close_kernel_size=8,
                                  focus_dilate_kernel_size=20,
                                  pixel_area_min=1000,
@@ -1521,7 +1648,7 @@ if __name__== "__main__":
                                  focus_dilate_kernel_size=20,
                                  pixel_area_min=1000,
                                  pixel_area_max=5000,
-                                 DEBUG=True)
+                                 DEBUG=False)
         pass
     
     
