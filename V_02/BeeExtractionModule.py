@@ -962,7 +962,7 @@ class BeeExtractionHandler:
         ffocus_exists =  os.path.isfile(self._df_fname_focus_csv)
         
         if fparent_exists:
-            self._df_parent = pd.read_csv(self._df_fname_parent_csv)
+            self._df_parent = pd.read_csv(self._df_fname_parent_csv, index_col=0)
         else:
             cols_parent =  ["src_index",
                             "src_fname",
@@ -975,7 +975,7 @@ class BeeExtractionHandler:
             pass
         
         if ffocus_exists:
-            self._df_focus = pd.read_csv(self._df_fname_focus_csv)
+            self._df_focus = pd.read_csv(self._df_fname_focus_csv, index_col=0)
         else:
             cols_focus =   ["index",
                             "fname",
@@ -988,7 +988,7 @@ class BeeExtractionHandler:
                             "pos_anchor",
                             "minAreaRect"]
             self._df_focus = pd.DataFrame(columns=cols_focus)
-            pass
+        pass
     
     def df_store(self):
         
@@ -1057,10 +1057,11 @@ class BeeExtractionHandler:
                 self._df_parent.loc[self._index] = ds_parent
                 
                 for ds in ds_child_list:
-                    new_series = pd.Series(ds,name=ds["fname"])
-                    self._df_focus=self._df_focus.append(new_series)
+                    # new_series = pd.Series(ds,name=ds["fname"])
+                    # self._df_focus=self._df_focus.append(new_series)
+                    self._df_focus.loc[ds["fname"]] = ds
     
-                temp = self._df_focus
+                # temp = self._df_focus
                 # print(self._df_parent.info())
                 # print(self._df_focus.info())
                 
@@ -1089,10 +1090,11 @@ class BeeExtractionHandler:
                     self._df_parent.loc[self._index] = ds_parent
                     
                     for ds in ds_child_list:
-                        new_series = pd.Series(ds,name=ds["fname"])
-                        self._df_focus=self._df_focus.append(new_series)
+                        # new_series = pd.Series(ds,name=ds["fname"])
+                        # self._df_focus=self._df_focus.append(new_series)
+                        self._df_focus.loc[ds["fname"]] = ds
         
-                    temp = self._df_focus
+                    # temp = self._df_focus
                     # print(self._df_parent.info())
                     # print(self._df_focus.info())
                     
@@ -1161,7 +1163,7 @@ class BeeExtractionHandler:
     
     
     
-    
+    #%%
     
     # # TODO: Update if necessaray
     # def init_df(self,list_cols):
@@ -1490,7 +1492,7 @@ if __name__== "__main__":
         myB.set_BIC_properties()
         
         #%%
-        myB.p_process(None,125)
+        myB.p_process(0,100)
         
         pass
     
