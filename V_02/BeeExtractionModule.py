@@ -611,6 +611,12 @@ class ParentImageClass:
     ### -----------------------------------------------------------------------
     ### PARENT config FUNCTIONS
     ### -----------------------------------------------------------------------
+    def get_dataseries_dict(self) -> dict:
+        """Returns a dict containing 'ds_parent' and 'ds_child_list'."""
+        ret = {"parent": self.ds_parent,
+               "children": self.ds_child_list}
+        return ret
+    
     def set_path_extracted(self,path_extracted):
         """Sets the directory path to save all extracted information to."""
         assert (type(path_extracted) == str)    # ensure that path is a string
