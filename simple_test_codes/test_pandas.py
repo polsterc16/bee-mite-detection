@@ -233,11 +233,13 @@ if TEST ==3:
                     "img_sharp",
                     "rel_pos_abdomen"]
     for col in cols_label:
-        df_focus[col] = None
+        df_focus[col] = np.nan
     print(df_focus.info())
     
-    # new_row = pd.Series(focus)
-    # df_focus=df_focus.append(new_row,ignore_index=True)
+    for i in range(3):
+        df_focus["has_bee"].iat[i]=  1
+        df_focus["img_sharp"].iat[i]=  0
+        df_focus["rel_pos_abdomen"].iat[i]= str((1,2))
 
 
 
