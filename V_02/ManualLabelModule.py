@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
 import os
+import random
 
 # import ImageHandlerModule as IHM
 
@@ -34,7 +35,7 @@ class ManualLabelHelper:
         
         # check if labels file exists. otherwise create it.
         self.df_startup()
-        
+        self.df_generate_setUnlabeled()
         
         # self._new_fig_()
         # self.nav_goto_by_index()
@@ -140,14 +141,24 @@ class ManualLabelHelper:
         self._df_labels.to_csv(self._df_fname_labels_scsv, sep=";")
         pass
     
-    def generate_setUnlabeled(self):
-        # check 
-        # for i in range(len(self._df_labels)):
-            
-            
-        #     pass
+    def df_generate_setUnlabeled(self):
+        """Will search through 'has_bee' and 'img_sharp' columns for empty cells 
+        and generate a set from this."""
+        df = self._df_labels
         
-        # self._setUnlabeled = set(indizes)
+        # check both 'has_bee' and 'img_sharp' columns for empty cells
+        index1 = df['has_bee'].index[df['has_bee'].apply(np.isnan)]
+        index2 = df['img_sharp'].index[df['img_sharp'].apply(np.isnan)]
+        
+        self._set_unlabeled_rowIndex = set(index1) | set(index2)
+        pass
+    
+    def df_get_rndm_idx_from_setUnlabeled_rowIndex(self):
+        """Get a random rowIndex from the set of unlabled_rowIndex."""
+        return random.choice(tuple(self._set_unlabeled_rowIndex))
+    def df_delete_idx_from_setUnlabeled_rowIndex(self,idx):
+        """Removes the specified rowIndex from the set of unlabled_rowIndex."""
+        self._set_unlabeled_rowIndex.discard(idx)
         pass
     
     # -------------------------------------------------------------------------
@@ -174,11 +185,6 @@ class ManualLabelHelper:
     def print_keybinds(self):
         print("[ESCAPE] Save to CSV")
         print("[SPACE]  Write & Next")
-        print("[B][<]   Previous")
-        print("[N][>]   Next")
-        print("[Y]      Toggle Box 1")
-        print("[X]      Toggle Box 2")
-        print("[C]      Toggle Box 3")
         pass
     
     
@@ -198,72 +204,122 @@ class ManualLabelHelper:
         # self.ax_img.axis("off")
         # self.ax_img.title.set_text("title")
         
-        self.fig_shape = ( int(self.fig.get_figwidth() * self.fig.dpi),
-                           int(self.fig.get_figheight() * self.fig.dpi) )
+        #int(self.fig.get_figwidth() * self.fig.dpi), int(self.fig.get_figheight() * self.fig.dpi)
+        self.fig_shape = ( 600 , 600  )
         
-        self.figim = self.fig.figimage( np.random.random((100,100)) )
-        self.img_extr_temp = np.random.random((100,100))
+        # self.figim = self.fig.figimage( np.random.random((100,100)) )
+        # self.img_extr_temp = np.random.random((100,100))
         
         self.widget_figtext_left = \
-            plt.figtext(0.25, 0.99, "title", 
-                        va ="top", ha ="center", wrap = True, fontsize = 10) 
+            plt.figtext(0.01, 0.99, "title_top", 
+                        va ="top", ha ="left", wrap = True, fontsize = 10) 
             
         
-        # axes on right top to show the ROI in the original image
-        self.ax_roi = plt.axes([0.5, 0.5, 0.5, 0.45])
-        self.ax_roi.axis("off")
-        self.ax_roi.title.set_text("title")
+        # axes on top to show the ROI image
+        self.ax_roi = plt.axes([0, 0.45, 1, 0.5]) #[left,bottom,width,height]
+        # self.ax_roi.axis("off")
+        self.ax_roi.title.set_text("")
+        
+        # axes on bottom left to show the focus image
+        self.ax_foc = plt.axes([0, 0, 0.45, 0.45]) #[left,bottom,width,height]
+        # self.ax_foc.axis("off")
+        self.ax_foc.title.set_text("")
+        
+        
+        # store informaiton about the remaining USER SPACE BOX
+        self._fig_user_box_xywh = {"px":0.45, "py":0, "w":0.55, "h":0.45}
+        uBox = self._fig_user_box_xywh
+        # Helps with resizing/shaping a relative box to the real ubox (px,py,w,h)
+        rshBx = lambda b,ub:(b[0]*ub["w"]+ub["px"], b[1]*ub["h"]+ub["py"], b[2]*ub["w"], b[3]*ub["h"])
         
         # axes for checkbox
-        self.ax_checkbox = plt.axes([0.525, 0.3, 0.2, 0.185])
-        self.ax_checkbox_labels = ["y is bee", "x mostly visible", "c has mite"]
+        box = (0, 0, 0.4, 0.5)    # coordinates relative inside ubox
+        box = rshBx(box,uBox)
+        self.ax_checkbox = plt.axes(box) #[left,bottom,width,height]
+        self.ax_checkbox_labels = ["+ BEE","- bee","+ SHARP","- sharp"]
         self.widget_check = mpl.widgets.CheckButtons(self.ax_checkbox, 
                                                      self.ax_checkbox_labels)
         
+        #axes for "Reload" button
+        box = [0*0.3+0.4,   0*0.15,     0.3,    0.15]
+        self.ax_button_Reload = plt.axes( rshBx(box,uBox) )
+        self.widget_button_Reload = mpl.widgets.Button(self.ax_button_Reload, "Reload")
+        self.widget_button_Reload.on_clicked(self.on_click_restore_from_df)
+        
+        #axes for "Save" button
+        box = [1*0.3+0.4,   0*0.15,     0.3,    0.15]
+        self.ax_button_save = plt.axes( rshBx(box,uBox) )
+        self.widget_button_Save = mpl.widgets.Button(self.ax_button_save, "to DF")
+        self.widget_button_Save.on_clicked(self.on_click_write_to_df)
+        
         #axes for "Write and Next" button
-        self.ax_button_WnN = plt.axes([0.525, 0.2, 0.1, 0.075])
-        self.widget_button_WnN = \
-            mpl.widgets.Button(self.ax_button_WnN, "W & N")
+        box = [0.4, 1*0.15, 0.6, 0.15]
+        self.ax_button_WnN = plt.axes( rshBx(box,uBox) )
+        self.widget_button_WnN = mpl.widgets.Button(self.ax_button_WnN, "> to DF & Next(rnd) >")
         self.widget_button_WnN.on_clicked(self.on_click_WnN)
         
-        #axes for "writeToDF" button
-        self.ax_button_writeToDF = plt.axes([0.525+0.12, 0.2, 0.15, 0.075])
-        self.widget_button_writeToDF = \
-            mpl.widgets.Button(self.ax_button_writeToDF, "Write to DF")
-        self.widget_button_writeToDF.on_clicked(self.on_click_write_to_df)
-        
-        #axes for "restore from df" button
-        self.ax_button_restoreFromDF = plt.axes([0.525+0.32, 0.2, 0.15, 0.075])
-        self.widget_button_restoreFromDF = \
-            mpl.widgets.Button(self.ax_button_restoreFromDF, "Restore from DF")
-        self.widget_button_restoreFromDF.on_clicked(self.on_click_restore_from_df)
-        
-        # ax for save csv
-        self.ax_button_saveCSV = plt.axes([0.525+0.375, 0.1, 0.1, 0.075])
-        self.widget_button_saveCSV =  mpl.widgets.Button(self.ax_button_saveCSV,"save CSV")
+        #axes for "Save CSV" button
+        box = [1*0.3+0.4,   1-0.15,     0.3,    0.15]
+        self.ax_button_saveCSV = plt.axes( rshBx(box,uBox) )
+        self.widget_button_saveCSV = mpl.widgets.Button(self.ax_button_saveCSV, "Save CSV")
         self.widget_button_saveCSV.on_clicked(self.on_click_saveCSV)
         
+        
+        #axes for "Reset img position" button
+        box = [0,   1-0.15,     0.3,    0.15]
+        self.ax_button_RstImgPos = plt.axes( rshBx(box,uBox) )
+        self.widget_button_RstImgPos = mpl.widgets.Button(self.ax_button_RstImgPos, "Reset Pos")
+        self.widget_button_RstImgPos.on_clicked(self.on_click_RstImgPos)
+        
+        
+        #axes for klick in image text
+        box = [0.025,0.825,0,0];  box=rshBx(box,uBox)
+        self.widget_figtext = plt.figtext(box[0], box[1], 
+                        "Abdomen Position:\nclick into image to set.", 
+                        va ="top", ha ="left", wrap = True, fontsize = 10, 
+                        bbox ={'facecolor':'grey', 'alpha':0.1, 'pad':5}) 
+        
+        
+        
+        
         # axes for navigation buttons
-        self.ax_button_j2_first = plt.axes([0.525, 0.0, 0.1, 0.075])
-        self.ax_button_j2_prev =  plt.axes([0.525+0.125, 0.0, 0.1, 0.075])
-        self.ax_button_j2_next =  plt.axes([0.525+0.25, 0.0, 0.1, 0.075])
-        self.ax_button_j2_last =  plt.axes([0.525+0.375, 0.0, 0.1, 0.075])
-        
-        self.ax_button_j2_select = plt.axes([0.525+0.25, 0.1, 0.1, 0.075])
-        
-        # make buttons
-        self.widget_button_j2_first =  mpl.widgets.Button(self.ax_button_j2_first,  "First")
-        self.widget_button_j2_prev =   mpl.widgets.Button(self.ax_button_j2_prev,   "Prev")
-        self.widget_button_j2_next =   mpl.widgets.Button(self.ax_button_j2_next,   "Next")
-        self.widget_button_j2_last =   mpl.widgets.Button(self.ax_button_j2_last,   "Last")
-        self.widget_button_j2_select = mpl.widgets.Button(self.ax_button_j2_select, "To (x)")
-        
-        #link to on-klick functions
-        self.widget_button_j2_first.on_clicked(self.on_click_j2_first)
+        box = [0*0.2+0.4,   2*0.15+0.05,    0.2,    0.15]
+        self.ax_button_j2_prev = plt.axes( rshBx(box,uBox) )
+        self.widget_button_j2_prev = mpl.widgets.Button(self.ax_button_j2_prev, "< Prev")
         self.widget_button_j2_prev.on_clicked(self.on_click_j2_prev)
+        
+        box = [1*0.2+0.4,   2*0.15+0.05,    0.2,    0.15]
+        self.ax_button_j2_rndm = plt.axes( rshBx(box,uBox) )
+        self.widget_button_j2_rndm = mpl.widgets.Button(self.ax_button_j2_rndm, "Rndm")
+        self.widget_button_j2_rndm.on_clicked(self.on_click_j2_rndm)
+        
+        box = [2*0.2+0.4,   2*0.15+0.05,    0.2,    0.15]
+        self.ax_button_j2_next = plt.axes( rshBx(box,uBox) )
+        self.widget_button_j2_next = mpl.widgets.Button(self.ax_button_j2_next, "Next >")
         self.widget_button_j2_next.on_clicked(self.on_click_j2_next)
-        self.widget_button_j2_last.on_clicked(self.on_click_j2_last)
-        self.widget_button_j2_select.on_clicked(self.on_click_j2_select)
+        
+        box = [2*0.2+0.4,   0.5+0.05,     0.2,    0.15]
+        self.ax_button_j2_goto = plt.axes( rshBx(box,uBox) )
+        self.widget_button_j2_goto = mpl.widgets.Button(self.ax_button_j2_goto, "Goto")
+        self.widget_button_j2_goto.on_clicked(self.on_click_j2_goto)
+        
+        
+        # make textbox widget
+        box = [1*0.2+0.4,   0.55,     0.2,    0.15]
+        self.ax_textbox_j2_goto = plt.axes( rshBx(box,uBox) )
+        self.widget_textbox_j2_goto = mpl.widgets.TextBox(self.ax_textbox_j2_goto, "To:","0")
+        self.widget_textbox_j2_goto.on_submit(self.txt_submit)
+        
+        
+        
+        thismanager = plt.get_current_fig_manager()
+        thismanager.resize(600,600)
+        # thismanager.window.setGeometry(self.posX, self.posY, self.w, self.h)
+        if True: return
+        
+        
+        
+        
         
         # make textbox widget
         self.ax_textbox_j2_select = plt.axes([0.525+0.125, 0.1, 0.1, 0.075])
@@ -294,11 +350,18 @@ class ManualLabelHelper:
         pass
     
     def on_click_saveCSV(self, event):
+        print("on_click_saveCSV")
         self.func_save_CSV()
+        pass
+    
+    def on_click_RstImgPos(self, event):
+        # TODO
+        print("on_click_RstImgPos")
         pass
     
     
     def on_click_write_to_df(self, event):
+        print("on_click_write_to_df")
         state = self.widget_check.get_status()
         self.df.loc[self.index,"isBee"] = state[0]
         self.df.loc[self.index,"mostlyVisible"] = state[1]
@@ -309,6 +372,7 @@ class ManualLabelHelper:
         pass
     
     def on_click_WnN(self, event):
+        print("on_click_WnN")
         state = self.widget_check.get_status()
         self.df.loc[self.index,"isBee"] = state[0]
         self.df.loc[self.index,"mostlyVisible"] = state[1]
@@ -319,38 +383,36 @@ class ManualLabelHelper:
         pass
     
     def on_click_restore_from_df(self, event):
+        print("on_click_restore_from_df")
         self.index_goto = self.index
         self.nav_goto_by_index()
         pass
     
-    def on_click_j2_first(self, event):
+    def on_click_j2_rndm(self, event):
+        print("on_click_j2_rndm")
+        # TODO
         self.index_goto = 0
         self.nav_goto_by_index()
         pass
     
-    def on_click_j2_last(self, event):
-        self.index_goto = self.index_max
-        self.nav_goto_by_index()
-        pass
-    
     def on_click_j2_prev(self, event):
+        print("on_click_j2_prev")
         self.index_goto = max( 0, self.index-1 )
         self.nav_goto_by_index()
         pass
     
     def on_click_j2_next(self, event):
+        print("on_click_j2_next")
         self.index_goto = min( self.index+1, self.index_max )
         self.nav_goto_by_index()
         pass
     
-    def on_click_j2_select(self, event):
-        self.nav_goto_by_index()
+    def on_click_j2_goto(self, event):
+        print("on_click_j2_goto")
+        # TODO
+        # self.nav_goto_by_index()
         pass
     
-    def update_button_label_j2_select(self, newLabel):
-        # function just for convenience
-        self.widget_button_j2_select.label.set_text( newLabel )
-        pass
     
     
     def txt_submit(self, event):
@@ -365,8 +427,6 @@ class ManualLabelHelper:
         # if self.index_goto is unchanged (no valid input), then the display resets.
         # otherwise, the display updates to the entered value.
         self.widget_textbox_j2_select.set_val( str(self.index_goto) )
-        # also the button label updates to the jump-to index
-        self.update_button_label_j2_select( "To "+str(self.index_goto) )
         
         self.fig.canvas.draw()  # update the display manually
         
@@ -381,16 +441,6 @@ class ManualLabelHelper:
             self.on_click_saveCSV(None)
         elif event.key == " ":
             self.on_click_WnN(None)
-        elif event.key in ["b","left"]:
-            self.on_click_j2_prev(None)
-        elif event.key in ["n","right"]:
-            self.on_click_j2_next(None)
-        elif (event.key == "y"):
-            self.widget_check.set_active(0)
-        elif (event.key == "x"):
-            self.widget_check.set_active(1)
-        elif (event.key == "c"):
-            self.widget_check.set_active(2)
         pass
     
     def nav_goto_by_index(self):
@@ -469,4 +519,6 @@ class ManualLabelHelper:
 # %% 
 myHLH = ManualLabelHelper()
 my_df = myHLH._df_labels
-# test._new_fig_()
+
+myHLH._new_fig_()
+myHLH.fig.show()
