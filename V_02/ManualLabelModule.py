@@ -13,28 +13,89 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
+import os
 
 # %% FUNCTIONS
 
 class ManualLabelHelper:
-    def __init__(self, force_new_file = False,
-                 path_MAIN = "extracted/", 
-                 path_imgs = "imgs/", 
-                 path_showroi = "showROI/"):
+    def __init__(self, dir_extraction = "extracted",
+                 file_focus =       "Focus_csv.csv", 
+                 dir_focus_img =    "focus", 
+                 dir_roi_img =      "roi"):
         self.index = 0
         self.index_goto = 0
         self.index_max = 0
-        self.path_MAIN = path_MAIN
-        self.path_imgs = path_imgs
-        self.path_showroi = path_showroi
         
-        self._check_for_file_(force_new_file)
+        self.set_dir_extracted(dir_extraction)
+        self.set_path_file_focus(file_focus)
+        self.set_dir_focus_img(dir_focus_img)
+        
+        
+        self._path_file_focus = self.check_path(file_focus)
+        self._path_focus_img =  self.check_path(dir_focus_img)
+        self._path_roi_img =    self.check_path(dir_roi_img)
+        self._check_for_labels_file_(path_labels_file)
         self._load_from_csv_()
         
         
         self._new_fig_()
         self.nav_goto_by_index()
         
+        
+        self.print_keybinds()
+        pass
+    
+    # -------------------------------------------------------------------------
+    def check_isdir(self,path):
+        """Stop object creation, if no valid directory path is given. Returns the absolute path."""
+        if (os.path.isdir(path) == False):
+            raise Exception("Requires a legal directory path!")
+        return os.path.abspath(path)
+    def check_isfile(self,path):
+        """Stop object creation, if no valid file path is given. Returns the absolute path."""
+        if (os.path.isfile(path) == False):
+            raise Exception("Requires a legal file path!")
+        return os.path.abspath(path)
+    
+    def set_dir_extracted(self,path):
+        """Sets the dir path to the extraction folder. 
+        
+        All other files are assumed to be relative to this folder, unless an abs_path is specified."""
+        self._dir_extracted = self.check_isdir(path)
+        pass
+    
+    def set_dir_focus_img(self,path):
+        """Sets the dir path to the focus_img folder. 
+        
+        Is assumed to be relative to the Extraction folder, unless an abs_path is specified."""
+        if os.path.isabs(path):
+            self._dir_focus_img = self.check_isdir( path )
+        else:
+            self._dir_focus_img = self.check_isdir( os.path.join(self._dir_extracted, path) )
+        pass
+    
+    def set_dir_roi_img(self,path):
+        """Sets the dir path to the roi_img folder. 
+        
+        Is assumed to be relative to the Extraction folder, unless an abs_path is specified."""
+        if os.path.isabs(path):
+            self._dir_roi_img = self.check_isdir( path )
+        else:
+            self._dir_roi_img = self.check_isdir( os.path.join(self._dir_extracted, path) )
+        pass
+    
+    def set_path_file_focus(self,path:str):
+        m = path.lower()
+        if not m.endswith(".csv"):
+            raise Exception("'path_file_focus' must end in '.csv'!")
+        
+        if os.path.isabs(path):
+            self._path_file_focus = self.check_isfile( path )
+        else:
+            self._path_file_focus = self.check_isfile( os.path.join(self._dir_extracted, path) )
+        pass
+    
+    def print_keybinds(self):
         print("[ESCAPE] Save to CSV")
         print("[SPACE]  Write & Next")
         print("[B][<]   Previous")
@@ -45,54 +106,44 @@ class ManualLabelHelper:
         pass
     
     
-    def _check_for_file_(self, force_new = False):
-        from pathlib import Path
-        
-        # if the file does not exist yet
-        if ( not Path(self.path_MAIN+"Extracted_2.csv").is_file() or force_new ):
-            try:
-                self.df = pd.read_csv(self.path_MAIN+"Extracted.csv", sep=";", index_col=0)
-            except:
-                print("ERROR Loading of Extracted.csv")
-                raise Exception("ERROR Loading of Extracted.csv") 
     
-            # Add empty Columns
-            self.df["isBee"] = False
-            self.df["mostlyVisible"] = False
-            self.df["hasMites"] = False
-            self.df["mitePos"] = np.nan
+    
+    def df_startup(self):
+        """Setup for the dataframe:
             
-            self.df.to_csv(self.path_MAIN+"Extracted_2.csv", sep=";")
-            pass
+        Defines file names, trys to load the label file or creats it, if not yet exists."""
+        fname_labels = "Labels"
         
-        try:
-            with open(self.path_MAIN + 'last_index.txt', "r") as file_object:
-                # read file content
-                data = file_object.read()
-                # print file contents
-                print("last index:", data)
-                self.index_goto = int(data)
-        except:
-            self.index_goto = 0
+        dir_extracted = self._dir_extracted
+        self._df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
+        self._df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
+        self._txt_last_index_fname = os.path.join(dir_extracted, "last_index_labels.txt")
         
+        # Check if [comma] separated value files exists
+        f_labels_exists = os.path.isfile(self._df_fname_parent_csv)
         
+        if f_labels_exists: # if exists: load
+            self._df_labels = pd.read_csv(self._df_fname_labels_csv, index_col=0)
+        else: # otherwise make new from focus file
+            cols_label =   ["has_bee",
+                            "img_sharp",
+                            "rel_pos_abdomen"]
+            # load the focus file as basis
+            self._df_labels = pd.read_csv(self._path_file_focus, index_col=0)
+            # append the columns with NaN as default values
+            for col in cols_label:
+                self._df_labels[col] = np.nan
+            # save the new file
+            self.df_store()
+        pass
+    
+    def df_store(self):
+        """Saves the dataframe"""
+        self._df_labels.to_csv(self._df_fname_labels_csv,  sep=",")
+        self._df_labels.to_csv(self._df_fname_labels_scsv, sep=";")
         pass
     
     
-    def _load_from_csv_(self):
-        try:
-            self.df = pd.read_csv(self.path_MAIN+"Extracted_2.csv", sep=";", index_col=0)
-        except:
-            print("ERROR Loading of Extracted_2.csv")
-            raise Exception("ERROR Loading of Extracted_2.csv") 
-
-        
-        # Show Head
-        row = self.df.loc[0,:]
-        print (row)
-        
-        self.index_max = len(self.df) - 1
-        pass
 
     
     # FIGURE functions
