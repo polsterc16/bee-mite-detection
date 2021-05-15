@@ -250,7 +250,7 @@ class ManualLabelHelper:
         box = [0*0.3+0.4,   0*0.15,     0.3,    0.15]
         self.ax_button_Reload = plt.axes( rshBx(box,uBox) )
         self.widget_button_Reload = mpl.widgets.Button(self.ax_button_Reload, "Reload")
-        self.widget_button_Reload.on_clicked(self.on_click_restore_from_df)
+        self.widget_button_Reload.on_clicked(self.on_click_reload)
         
         #axes for "Save" button
         box = [1*0.3+0.4,   0*0.15,     0.3,    0.15]
@@ -431,39 +431,36 @@ class ManualLabelHelper:
         # self.nav_goto_by_index()
         pass
     
-    def on_click_restore_from_df(self, event):
+    def on_click_reload(self, event):
         print("on_click_restore_from_df")
-        # self.index_goto = self.index
-        # self.nav_goto_by_index()
+        
+        self.nav_goto_rowIdx(self._rowIdx)
         pass
     
     def on_click_j2_rndm(self, event):
         print("on_click_j2_rndm")
-        # TODO
-        # self.index_goto = 0
-        # self.nav_goto_by_index()
+        self.nav_goto_rndm()
         pass
     
     def on_click_j2_prev(self, event):
         print("on_click_j2_prev")
-        # self.index_goto = max( 0, self.index-1 )
-        # self.nav_goto_by_index()
+        # dont go farther than the minimum
+        self.nav_goto_position( max([self._df_position-1, 0]) )
         pass
     
     def on_click_j2_next(self, event):
         print("on_click_j2_next")
-        # self.index_goto = min( self.index+1, self.index_max )
-        # self.nav_goto_by_index()
+        # dont go farther than the max size
+        self.nav_goto_position( min([self._df_position+1, self._df_size]) )
         pass
     
     def on_click_j2_goto(self, event):
         print("on_click_j2_goto")
-        # TODO
-        # self.nav_goto_by_index()
+        self.nav_goto_position( self._df_position_goto )
         pass
     
     def on_click_canvas(self, event):
-        print("on_click_canvas")
+        # print("on_click_canvas")
         # print(event)
         # TODO
         if event.inaxes == self.ax_foc:
@@ -492,15 +489,15 @@ class ManualLabelHelper:
     def txt_submit(self, event):
         if event=="":
             # if tectbox left empty, then just show the current index
-            self.index_goto = self.index
+            self._df_position_goto = self._df_position
         elif event.isnumeric():
             # else: if the string is a number, we will set for as the jump-to index.
             # (additionally: only allow to jump to the max possible index)
-            self.index_goto = min( int(event), self.index_max )
+            self._df_position_goto = max( [min( [int(event), self._df_size-1] ), 0] )
         
         # if self.index_goto is unchanged (no valid input), then the display resets.
         # otherwise, the display updates to the entered value.
-        self.widget_textbox_j2_goto.set_val( str(self.index_goto) )
+        self.widget_textbox_j2_goto.set_val( str(self._df_position_goto) )
         
         self.fig.canvas.draw()  # update the display manually
         
@@ -524,7 +521,7 @@ class ManualLabelHelper:
     
     def nav_goto_position(self,position:int):
         # only if the index is inside the possible range of positions
-        if position in [0, self._df_size-1]:
+        if position in range(0, self._df_size):
             row = self._df_labels.iloc[position]
             rowIdx = row.name
             self.nav_goto_rowIdx(rowIdx)
@@ -535,6 +532,7 @@ class ManualLabelHelper:
         self._rowIdx = rowIdx
         self._df_row = self._df_labels.loc[self._rowIdx]         # fetch the row
         self._df_position = self._df_labels.index.get_loc(self._rowIdx)   # fetch the position as integer
+        self._df_position_goto = self._df_position
         
         img_roi = cv2.imread(self._df_row["roi_fpath"])          # fetch roi image
         self._img_roi = cv2.cvtColor(img_roi, cv2.COLOR_BGR2RGB)    # make to RGB!!!
@@ -672,6 +670,7 @@ class ManualLabelHelper:
         
         
         self.widget_figtext_pos.set_text(self.widget_figtext_pos_text)
+        self.widget_figtext_pos.set_c(color="k")
 
         self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click_canvas)
         self.fig.canvas.draw()  # update the display manually
