@@ -327,7 +327,7 @@ class ManualLabelHelper:
             old = self.ax_checkbox_status_old
             states = self.widget_checkbox.get_status()
             labels = list(self.ax_checkbox_labels)
-            print(states)
+            # print(states)
             
             # detect where to toggle
             if event == self.ax_checkbox_labels[0]:     # if 1st button
@@ -344,7 +344,7 @@ class ManualLabelHelper:
                 if states[3] and states[2]:                 # check if 3rd button was active
                     self.widget_checkbox.set_active(2)      # togge it (to off)
             
-            print(states)
+            # print(states)
             states = self.widget_checkbox.get_status()
             diff = np.bitwise_xor(states, old)
             # print(diff)
@@ -496,7 +496,7 @@ class ManualLabelHelper:
         # print(cbx)
         # print(pos_abd)
         # row = self._df_labels.at[self._rowIdx, 
-        print(cbx)
+        # print(cbx)
         if (cbx[0]==False and cbx[1]==False):
             self._df_labels.at[self._rowIdx, "has_bee"] = np.nan
         elif cbx[0]==True:
