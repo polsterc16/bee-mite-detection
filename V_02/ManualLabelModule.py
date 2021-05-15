@@ -274,14 +274,15 @@ class ManualLabelHelper:
         #axes for "Reset img position" button
         box = [0,   1-0.15,     0.3,    0.15]
         self.ax_button_RstImgPos = plt.axes( rshBx(box,uBox) )
-        self.widget_button_RstImgPos = mpl.widgets.Button(self.ax_button_RstImgPos, "Reset Pos")
+        self.widget_button_RstImgPos = mpl.widgets.Button(self.ax_button_RstImgPos, "Clear Pos")
         self.widget_button_RstImgPos.on_clicked(self.on_click_RstImgPos)
         
         
         #axes for klick in image text
         box = [0.025,0.825,0,0];  box=rshBx(box,uBox)
-        self.widget_figtext = plt.figtext(box[0], box[1], 
-                        "Abdomen Position:\nclick into image to set.", 
+        self.widget_figtext_pos_text = "Abdomen Position:\nclick into image to set."
+        self.widget_figtext_pos = plt.figtext(box[0], box[1], 
+                        self.widget_figtext_pos_text, 
                         va ="top", ha ="left", wrap = True, fontsize = 10, 
                         bbox ={'facecolor':'grey', 'alpha':0.1, 'pad':5}) 
         
@@ -336,18 +337,20 @@ class ManualLabelHelper:
     def on_close(self,event):
         # save to csv on figure closing
         # self.func_save_CSV()
+        self.fig.canvas.mpl_disconnect(self.cid)
         print("Figure closed.")
         pass
     
     def on_click_widget_checkbox(self, event):
         print("on_click_widget_checkbox")
         # print(type(event))
-        print(self.widget_checkbox.get_status())
-        print(event)
+        # print(self.widget_checkbox.get_status())
+        # print(event)
         
         if event in self.ax_checkbox_labels:
             old = self.ax_checkbox_status_old
             states = self.widget_checkbox.get_status()
+            labels = list(self.ax_checkbox_labels)
             
             # detect where to toggle
             if event == self.ax_checkbox_labels[0]:     # if 1st button
@@ -366,9 +369,15 @@ class ManualLabelHelper:
             
             states = self.widget_checkbox.get_status()
             diff = np.bitwise_xor(states, old)
+            # print(diff)
+            for i in range(len(diff)):
+                if diff[i]:
+                    self.widget_checkbox.labels[i].set_color("r")
+                else:
+                    self.widget_checkbox.labels[i].set_color("k")
             pass
         
-        
+        self.fig.canvas.draw()  # update the display manually
         pass
     
     def on_click_saveCSV(self, event):
@@ -379,6 +388,24 @@ class ManualLabelHelper:
     def on_click_RstImgPos(self, event):
         # TODO
         print("on_click_RstImgPos")
+        
+        pos_xy = None
+        self.widget_figtext_pos_coords = pos_xy
+        self.draw_imgFocus_abdomenPos(pos_xy)
+        
+        self.ax_foc.clear()
+        self.ax_foc.axis("off")
+        self.ax_foc.imshow(self._img_focus_show)
+        
+        self.widget_figtext_pos_text = "Abdomen Position:\n{}.".format(self.widget_figtext_pos_coords)
+        
+        self.widget_figtext_pos.set_text(self.widget_figtext_pos_text)
+        if self.widget_figtext_pos_coords_old == self.widget_figtext_pos_coords:
+            self.widget_figtext_pos.set_c(color="k")
+        else:
+            self.widget_figtext_pos.set_c(color="r")
+        
+        self.fig.canvas.draw()
         pass
     
     
@@ -433,6 +460,31 @@ class ManualLabelHelper:
         print("on_click_j2_goto")
         # TODO
         # self.nav_goto_by_index()
+        pass
+    
+    def on_click_canvas(self, event):
+        print("on_click_canvas")
+        # print(event)
+        # TODO
+        if event.inaxes == self.ax_foc:
+            print("Clicked on focus image")
+            # print(event)
+            pos_xy = (int(event.xdata), int(event.ydata))
+            self.widget_figtext_pos_coords = pos_xy
+            self.draw_imgFocus_abdomenPos(pos_xy)
+            
+            self.ax_foc.clear()
+            self.ax_foc.axis("off")
+            self.ax_foc.imshow(self._img_focus_show)
+            
+            self.widget_figtext_pos_text = "Abdomen Position:\n{}.".format(self.widget_figtext_pos_coords)
+            self.widget_figtext_pos.set_text(self.widget_figtext_pos_text)
+            if self.widget_figtext_pos_coords_old == self.widget_figtext_pos_coords:
+                self.widget_figtext_pos.set_c(color="k")
+            else:
+                self.widget_figtext_pos.set_c(color="r")
+            
+            self.fig.canvas.draw()
         pass
     
     
@@ -494,6 +546,53 @@ class ManualLabelHelper:
         
         
         
+        # check status of saved data in DF
+        index_list = ["has_bee","img_sharp","rel_pos_abdomen"]
+        _has_bee =    self._df_row["has_bee"] 
+        if np.isnan(_has_bee): # we must differentiate between NaN and T/F data!
+            _has_bee_Y = False
+            _has_bee_N = False
+        else:
+            _has_bee_Y = _has_bee > 0
+            _has_bee_N = not _has_bee_Y
+            
+        _img_sharp =  self._df_row["img_sharp"] 
+        if np.isnan(_img_sharp):
+            _img_sharp_Y = False
+            _img_sharp_N = False
+        else:
+            _img_sharp_Y = _has_bee > 0
+            _img_sharp_N = not _img_sharp_Y
+            
+        _rel_pos_abdomen = self._df_row["rel_pos_abdomen"]
+        if _rel_pos_abdomen in [" ",""]: #special empty case for _rel_pos_abdomen
+            _rel_pos_abdomen = tuple()
+        else:
+            _rel_pos_abdomen = tuple( literal_eval(_rel_pos_abdomen) )
+        
+        if len(_rel_pos_abdomen)==2:
+            if type(_rel_pos_abdomen[0])==int and type(_rel_pos_abdomen[1])==int:
+                coords = _rel_pos_abdomen
+            else:
+                coords = None
+        else:
+            coords = None
+        
+        self.draw_imgFocus_abdomenPos(coords)
+        self.widget_figtext_pos_coords_old = coords
+        self.widget_figtext_pos_coords = coords
+                
+            
+        self.ax_checkbox_status_old = (_has_bee_Y, _has_bee_N, _img_sharp_Y, _img_sharp_N)
+        self.ax_checkbox_status = list(self.ax_checkbox_status_old)
+        
+        if self.widget_figtext_pos_coords==None:
+            self.widget_figtext_pos_text = "Abdomen Position:\nclick into image to set."
+        else:
+            self.widget_figtext_pos_text = "Abdomen Position:\n{}.".format(self.widget_figtext_pos_coords)
+        
+        
+        
         self.txt_submit(str(self._df_position))
         self.update_fig()
         pass
@@ -523,15 +622,16 @@ class ManualLabelHelper:
         self._draw_imgFocus_overlay()
         pass
     
-    def draw_imgFocus_beePos(self, px, py, radius=5):
+    def draw_imgFocus_abdomenPos(self, pos_xy, radius=10):
         """Write user bee pos into the overlay (red channel)."""
         shape = self._img_focus_backup.shape
         dim = np.flip(shape[0:2])
         img = np.zeros(shape[0:2], dtype=np.uint8) # clear red channel
         
         # if the coords are int, then we draw the circle - otherwise we leave the red channel empty
-        if (type(px)==int) and (type(px)==int):
-            cv2.circle(img, (px,py), radius, 255, -1)
+        if type(pos_xy) in [list,tuple]:
+            if len(pos_xy)==2:
+                cv2.circle(img, (int(pos_xy[0]), int(pos_xy[1])), radius, 255, -1)
         
         # write this img to red channel of overlay
         self._img_focus_over[:,:,0] = img 
@@ -563,33 +663,6 @@ class ManualLabelHelper:
         self.ax_foc.axis("off")
         self.ax_foc.imshow(self._img_focus_show)
         
-        # check status of saved data in DF
-        index_list = ["has_bee","img_sharp","rel_pos_abdomen"]
-        _has_bee =    self._df_row["has_bee"] 
-        if np.isnan(_has_bee): # we must differentiate between NaN and T/F data!
-            _has_bee_Y = False
-            _has_bee_N = False
-        else:
-            _has_bee_Y = _has_bee > 0
-            _has_bee_N = not _has_bee_Y
-            
-        _img_sharp =  self._df_row["img_sharp"] 
-        if np.isnan(_img_sharp):
-            _img_sharp_Y = False
-            _img_sharp_N = False
-        else:
-            _img_sharp_Y = _has_bee > 0
-            _img_sharp_N = not _img_sharp_Y
-            
-        _rel_pos_abdomen = self._df_row["rel_pos_abdomen"]
-        if _rel_pos_abdomen in [" ",""]: #special empty case for _rel_pos_abdomen
-            _rel_pos_abdomen = tuple()
-        else:
-            _rel_pos_abdomen = tuple( literal_eval(_rel_pos_abdomen) )
-            
-            
-        self.ax_checkbox_status_old = (_has_bee_Y, _has_bee_N, _img_sharp_Y, _img_sharp_N)
-        self.ax_checkbox_status = list(self.ax_checkbox_status_old)
         
         self.ax_checkbox.clear()
         self.widget_checkbox = mpl.widgets.CheckButtons(self.ax_checkbox, 
@@ -598,9 +671,9 @@ class ManualLabelHelper:
         self.widget_checkbox.on_clicked(self.on_click_widget_checkbox)
         
         
-        figtext = "" #figtext_list[0]+"\n"+figtext_list[1]+"\n"+figtext_list[2]
-        self.widget_figtext.set_text(figtext)
-    
+        self.widget_figtext_pos.set_text(self.widget_figtext_pos_text)
+
+        self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click_canvas)
         self.fig.canvas.draw()  # update the display manually
         pass
 
@@ -614,9 +687,9 @@ class ManualLabelHelper:
 myHLH = ManualLabelHelper()
 my_df = myHLH._df_labels
 
-myHLH._new_fig_()
-myHLH.update_fig()
-myHLH.fig.show()
+# myHLH._new_fig_()
+# myHLH.update_fig()
+# myHLH.fig.show()
 
-b = myHLH.widget_checkbox
+# b = myHLH.widget_checkbox
 # a = myHLH._a
