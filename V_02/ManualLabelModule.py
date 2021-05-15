@@ -161,6 +161,8 @@ class ManualLabelHelper:
         index2 = df['img_sharp'].index[df['img_sharp'].apply(np.isnan)]
         
         self._set_unlabeled_rowIndex = set(index1) | set(index2)
+        
+        print("Unlabled imgs: {}".format(len(self._set_unlabeled_rowIndex)))
         pass
     
     def df_get_rndm_idx_from_setUnlabeled_rowIndex(self):
