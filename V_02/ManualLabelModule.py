@@ -516,7 +516,7 @@ class ManualLabelHelper:
         minAreaRect = literal_eval( self._df_row["minAreaRect"] )
         box = cv2.boxPoints(minAreaRect) # make a box
         box = np.int0(box)
-        cv2.drawContours(img,[box],0,255,1) # draw box
+        cv2.drawContours(img,[box],0,255,1,cv2.LINE_AA ,offset=(- posA[0],- posA[1])) # draw box
         
         # write this img to blue channel of overlay
         self._img_focus_over[:,:,2] = img 
