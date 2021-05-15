@@ -32,6 +32,7 @@ class ManualLabelHelper:
         self.index = 0
         self.index_goto = 0
         self.index_max = 0
+        self._storing_counter = 0
         
         self.set_dir_extracted(dir_extraction)
         self.set_path_file_focus(file_focus)
@@ -144,6 +145,10 @@ class ManualLabelHelper:
         """Saves the dataframe"""
         self._df_labels.to_csv(self._df_fname_labels_csv,  sep=",")
         self._df_labels.to_csv(self._df_fname_labels_scsv, sep=";")
+        
+        self._storing_counter = 0
+        
+        print("Stored {}".format(self._df_fname_labels_csv))
         pass
     
     def df_generate_setUnlabeled(self):
@@ -307,7 +312,7 @@ class ManualLabelHelper:
     
     def on_close(self,event):
         # save to csv on figure closing
-        # self.func_save_CSV()
+        self.df_store()
         self.fig.canvas.mpl_disconnect(self.cid)
         print("Figure closed.")
         pass
@@ -322,6 +327,7 @@ class ManualLabelHelper:
             old = self.ax_checkbox_status_old
             states = self.widget_checkbox.get_status()
             labels = list(self.ax_checkbox_labels)
+            print(states)
             
             # detect where to toggle
             if event == self.ax_checkbox_labels[0]:     # if 1st button
@@ -338,6 +344,7 @@ class ManualLabelHelper:
                 if states[3] and states[2]:                 # check if 3rd button was active
                     self.widget_checkbox.set_active(2)      # togge it (to off)
             
+            print(states)
             states = self.widget_checkbox.get_status()
             diff = np.bitwise_xor(states, old)
             # print(diff)
@@ -355,7 +362,7 @@ class ManualLabelHelper:
     
     def on_click_saveCSV(self, event):
         print("on_click_saveCSV")
-        # self.func_save_CSV()
+        self.df_store()
         pass
     
     def on_click_RstImgPos(self, event):
@@ -471,11 +478,13 @@ class ManualLabelHelper:
     
     def on_key(self,event):
         self.keypressed = event.key
-        print('you pressed', event.key)
+        
         
         if event.key == "escape":
+            print('you pressed', event.key)
             self.on_click_saveCSV(None)
         elif event.key == " ":
+            print('you pressed', event.key)
             self.on_click_WnN(None)
         pass
     
@@ -487,7 +496,7 @@ class ManualLabelHelper:
         # print(cbx)
         # print(pos_abd)
         # row = self._df_labels.at[self._rowIdx, 
-        
+        print(cbx)
         if (cbx[0]==False and cbx[1]==False):
             self._df_labels.at[self._rowIdx, "has_bee"] = np.nan
         elif cbx[0]==True:
@@ -497,7 +506,7 @@ class ManualLabelHelper:
         
         if (cbx[2]==False and cbx[3]==False):
             self._df_labels.at[self._rowIdx, "img_sharp"] = np.nan
-        elif cbx[0]==True:
+        elif cbx[2]==True:
             self._df_labels.at[self._rowIdx, "img_sharp"] = 1
         else:
             self._df_labels.at[self._rowIdx, "img_sharp"] = 0
@@ -505,6 +514,12 @@ class ManualLabelHelper:
         self._df_labels.at[self._rowIdx, "rel_pos_abdomen"] = str(pos_abd)
         
         print("wrote {} to DF.".format(self._rowIdx))
+        
+        
+        self._storing_counter += 1 # inc counter
+        if (self._storing_counter >= 10):
+            self._storing_counter = 0
+            self.df_store()
         
         pass
     
@@ -553,7 +568,7 @@ class ManualLabelHelper:
             _img_sharp_Y = False
             _img_sharp_N = False
         else:
-            _img_sharp_Y = _has_bee > 0
+            _img_sharp_Y = _img_sharp > 0
             _img_sharp_N = not _img_sharp_Y
             
         _rel_pos_abdomen = self._df_row["rel_pos_abdomen"]
