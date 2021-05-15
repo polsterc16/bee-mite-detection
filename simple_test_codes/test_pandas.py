@@ -222,27 +222,43 @@ if TEST ==3:
         df_focus.loc[i] = focus
     print(df_focus.info())
     
-    df_focus.to_csv("test_df_temp.csv")
+    # df_focus.to_csv("test_df_temp.csv")
     #%%
-    df_focus=None
-    df_focus = pd.read_csv("test_df_temp.csv", index_col=0)
-    print(df_focus.info())
+    # df_focus=None
+    # df_focus = pd.read_csv("test_df_temp.csv", index_col=0)
+    # print(df_focus.info())
     
     
-    cols_label =   ["has_bee",
-                    "img_sharp",
-                    "rel_pos_abdomen"]
+    cols_label =   [("has_bee",np.nan),
+                    ("img_sharp",np.nan),
+                    ("rel_pos_abdomen"," ")]
     for col in cols_label:
-        df_focus[col] = np.nan
+        df_focus[col[0]] = col[1]
     print(df_focus.info())
     
     for i in range(3):
         df_focus["has_bee"].iat[i]=  1
         df_focus["img_sharp"].iat[i]=  0
         df_focus["rel_pos_abdomen"].iat[i]= str((1,2))
-
-
-
+        pass
+    #%%
+    import pandas as pd
+    import numpy as np
+    
+    data = {'Column_A': [1,2,3,4,5,np.nan,6,7,np.nan],
+            'Column_B': [11,22,33,44,55,66,77,88,99],
+            'Column_C': ['a','b',np.nan,np.nan,'c','d','e',np.nan,'f'],
+            'Column_D': ['aa','bb','cc','dd','ee','ff','gg','hh','ii']
+            }
+    
+    df = pd.DataFrame(data,columns=['Column_A','Column_B','Column_C','Column_D'])
+    
+    # nan_values = df[df.columns[df.isna().any()]]
+    
+    # print (nan_values)
+    
+    index = df['Column_A'].index[df['Column_A'].apply(np.isnan)]
+    print(index)
 
 
 
