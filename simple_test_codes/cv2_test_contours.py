@@ -74,13 +74,23 @@ areas = [int( cv2.contourArea(c) ) for c in contours]
 ell = cv2.fitEllipse(c0)
 minRect = cv2.minAreaRect(c_off)
 
+# ((315.8999938964844, 163.79998779296875), (45.520748138427734, 73.4285659790039), -82.87498474121094)
+# ((318.6860046386719, 183.79737854003906), (89.6900405883789, 70.09237670898438), -71.20011138916016)
+# ((315.6593017578125, 221.61062622070312), (59.27708053588867, 115.2726821899414), -14.620874404907227)
+# ((300.5, 271.0), (81.0, 56.0), -0.0)
 
+#%%
+# rect = cv2.minAreaRect(cnt)
+# box = cv2.cv.BoxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
+# box = np.int0(box)
+# cv2.drawContours(im,[box],0,(0,0,255),2)
 
+rect = (minRect[0], minRect[1], minRect[2]-45)
+box = cv2.boxPoints(rect) # cv2.boxPoints(rect) for OpenCV 3.x
+box = np.int0(box)
+cv2.drawContours(img3,[box],0,(0,0,255),2)
 
-
-
-
-
+cv2.imshow("win3",img3)
 
 
 
