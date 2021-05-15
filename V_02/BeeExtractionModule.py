@@ -955,7 +955,7 @@ class BeeExtractionHandler:
         self._df_fname_parent_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_parent))
         self._df_fname_focus_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_focus))
         self._df_fname_focus_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_focus))
-        self._txt_last_index_fname = os.path.join(path_dir, "last_index.txt")
+        self._txt_last_index_fname = os.path.join(path_dir, "last_index_extract.txt")
         
         # We will load from the [comma] separated value files
         fparent_exists = os.path.isfile(self._df_fname_parent_csv)
