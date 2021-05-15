@@ -15,6 +15,8 @@ import matplotlib as mpl
 import pandas as pd
 import os
 
+# import ImageHandlerModule as IHM
+
 # %% FUNCTIONS
 
 class ManualLabelHelper:
@@ -30,16 +32,12 @@ class ManualLabelHelper:
         self.set_path_file_focus(file_focus)
         self.set_dir_focus_img(dir_focus_img)
         
-        
-        self._path_file_focus = self.check_path(file_focus)
-        self._path_focus_img =  self.check_path(dir_focus_img)
-        self._path_roi_img =    self.check_path(dir_roi_img)
-        self._check_for_labels_file_(path_labels_file)
-        self._load_from_csv_()
+        # check if labels file exists. otherwise create it.
+        self.df_startup()
         
         
-        self._new_fig_()
-        self.nav_goto_by_index()
+        # self._new_fig_()
+        # self.nav_goto_by_index()
         
         
         self.print_keybinds()
@@ -63,6 +61,8 @@ class ManualLabelHelper:
         All other files are assumed to be relative to this folder, unless an abs_path is specified."""
         self._dir_extracted = self.check_isdir(path)
         pass
+    def get_dir_extracted(self):
+        return self._dir_extracted
     
     def set_dir_focus_img(self,path):
         """Sets the dir path to the focus_img folder. 
@@ -73,6 +73,8 @@ class ManualLabelHelper:
         else:
             self._dir_focus_img = self.check_isdir( os.path.join(self._dir_extracted, path) )
         pass
+    def get_dir_focus_img(self):
+        return self._dir_focus_img
     
     def set_dir_roi_img(self,path):
         """Sets the dir path to the roi_img folder. 
@@ -83,6 +85,8 @@ class ManualLabelHelper:
         else:
             self._dir_roi_img = self.check_isdir( os.path.join(self._dir_extracted, path) )
         pass
+    def get_dir_roi_img(self):
+        return self._dir_roi_img
     
     def set_path_file_focus(self,path:str):
         m = path.lower()
@@ -94,18 +98,6 @@ class ManualLabelHelper:
         else:
             self._path_file_focus = self.check_isfile( os.path.join(self._dir_extracted, path) )
         pass
-    
-    def print_keybinds(self):
-        print("[ESCAPE] Save to CSV")
-        print("[SPACE]  Write & Next")
-        print("[B][<]   Previous")
-        print("[N][>]   Next")
-        print("[Y]      Toggle Box 1")
-        print("[X]      Toggle Box 2")
-        print("[C]      Toggle Box 3")
-        pass
-    
-    
     
     
     def df_startup(self):
@@ -120,21 +112,26 @@ class ManualLabelHelper:
         self._txt_last_index_fname = os.path.join(dir_extracted, "last_index_labels.txt")
         
         # Check if [comma] separated value files exists
-        f_labels_exists = os.path.isfile(self._df_fname_parent_csv)
+        f_labels_exists = os.path.isfile(self._df_fname_labels_csv)
         
         if f_labels_exists: # if exists: load
             self._df_labels = pd.read_csv(self._df_fname_labels_csv, index_col=0)
         else: # otherwise make new from focus file
-            cols_label =   ["has_bee",
-                            "img_sharp",
-                            "rel_pos_abdomen"]
+            cols_label_default = [("has_bee",np.nan),
+                                  ("img_sharp",np.nan),
+                                  ("rel_pos_abdomen"," ")]
             # load the focus file as basis
             self._df_labels = pd.read_csv(self._path_file_focus, index_col=0)
             # append the columns with NaN as default values
-            for col in cols_label:
-                self._df_labels[col] = np.nan
+            for item in cols_label_default:
+                self._df_labels[item[0]] = item[1]
+            
+            # sort df
+            self._df_labels.sort_values(by=["fname"], inplace=True)
             # save the new file
             self.df_store()
+        
+        self._df_size = len(self._df_labels)
         pass
     
     def df_store(self):
@@ -142,6 +139,49 @@ class ManualLabelHelper:
         self._df_labels.to_csv(self._df_fname_labels_csv,  sep=",")
         self._df_labels.to_csv(self._df_fname_labels_scsv, sep=";")
         pass
+    
+    def generate_setUnlabeled(self):
+        # check 
+        # for i in range(len(self._df_labels)):
+            
+            
+        #     pass
+        
+        # self._setUnlabeled = set(indizes)
+        pass
+    
+    # -------------------------------------------------------------------------
+    
+    def load_imgs(self,focus_name):
+        self._img_focus = None
+        self._img_roi = None
+        pass
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    def print_keybinds(self):
+        print("[ESCAPE] Save to CSV")
+        print("[SPACE]  Write & Next")
+        print("[B][<]   Previous")
+        print("[N][>]   Next")
+        print("[Y]      Toggle Box 1")
+        print("[X]      Toggle Box 2")
+        print("[C]      Toggle Box 3")
+        pass
+    
+    
     
     
 
@@ -246,16 +286,6 @@ class ManualLabelHelper:
         pass
     
     
-    def func_save_CSV(self):
-        # save to csv
-        self.df.to_csv(self.path_MAIN+"Extracted_2.csv",sep=";")
-        
-        # note where we last where
-        path = self.path_MAIN+"last_index.txt"
-        with open(path, "w") as f:
-            f.write(str(self.index))
-        print("index:",self.index) # display current index
-        pass
     
     def on_close(self,event):
         # save to csv on figure closing
@@ -437,5 +467,6 @@ class ManualLabelHelper:
 
 
 # %% 
-test = ManualLabelHelper()
+myHLH = ManualLabelHelper()
+my_df = myHLH._df_labels
 # test._new_fig_()
