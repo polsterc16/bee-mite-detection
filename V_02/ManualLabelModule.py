@@ -375,6 +375,8 @@ class ManualLabelHelper:
                     self.widget_checkbox.labels[i].set_color("r")
                 else:
                     self.widget_checkbox.labels[i].set_color("k")
+            
+            self.ax_checkbox_status = states
             pass
         
         self.fig.canvas.draw()  # update the display manually
@@ -411,24 +413,16 @@ class ManualLabelHelper:
     
     def on_click_write_to_df(self, event):
         print("on_click_write_to_df")
-        # state = self.widget_checkbox.get_status()
-        # self.df.loc[self.index,"isBee"] = state[0]
-        # self.df.loc[self.index,"mostlyVisible"] = state[1]
-        # self.df.loc[self.index,"hasMites"] = state[2]
-        
-        # self.index_goto = self.index
-        # self.nav_goto_by_index()
+        self.write_to_df()
+        # reload itself
+        self.nav_goto_rowIdx(self._rowIdx)
         pass
     
     def on_click_WnN(self, event):
         print("on_click_WnN")
-        # state = self.widget_checkbox.get_status()
-        # self.df.loc[self.index,"isBee"] = state[0]
-        # self.df.loc[self.index,"mostlyVisible"] = state[1]
-        # self.df.loc[self.index,"hasMites"] = state[2]
-        
-        # self.index_goto = min( self.index+1, self.index_max )
-        # self.nav_goto_by_index()
+        self.write_to_df()
+        # goto rndm
+        self.nav_goto_rndm()
         pass
     
     def on_click_reload(self, event):
@@ -514,6 +508,35 @@ class ManualLabelHelper:
             self.on_click_WnN(None)
         pass
     
+    
+    
+    def write_to_df(self):
+        cbx = self.ax_checkbox_status
+        pos_abd = self.widget_figtext_pos_coords
+        # print(cbx)
+        # print(pos_abd)
+        # row = self._df_labels.at[self._rowIdx, 
+        
+        if (cbx[0]==False and cbx[1]==False):
+            self._df_labels.at[self._rowIdx, "has_bee"] = np.nan
+        elif cbx[0]==True:
+            self._df_labels.at[self._rowIdx, "has_bee"] = 1
+        else:
+            self._df_labels.at[self._rowIdx, "has_bee"] = 0
+        
+        if (cbx[2]==False and cbx[3]==False):
+            self._df_labels.at[self._rowIdx, "img_sharp"] = np.nan
+        elif cbx[0]==True:
+            self._df_labels.at[self._rowIdx, "img_sharp"] = 1
+        else:
+            self._df_labels.at[self._rowIdx, "img_sharp"] = 0
+        
+        self._df_labels.at[self._rowIdx, "rel_pos_abdomen"] = str(pos_abd)
+        
+        print("wrote {} to DF.".format(self._rowIdx))
+        
+        pass
+    
     def nav_goto_rndm(self):
         rowIdx = self.df_get_rndm_idx_from_setUnlabeled_rowIndex()
         self.nav_goto_rowIdx(rowIdx)
@@ -563,18 +586,13 @@ class ManualLabelHelper:
             _img_sharp_N = not _img_sharp_Y
             
         _rel_pos_abdomen = self._df_row["rel_pos_abdomen"]
-        if _rel_pos_abdomen in [" ",""]: #special empty case for _rel_pos_abdomen
-            _rel_pos_abdomen = tuple()
-        else:
-            _rel_pos_abdomen = tuple( literal_eval(_rel_pos_abdomen) )
-        
-        if len(_rel_pos_abdomen)==2:
-            if type(_rel_pos_abdomen[0])==int and type(_rel_pos_abdomen[1])==int:
-                coords = _rel_pos_abdomen
-            else:
-                coords = None
-        else:
-            coords = None
+        coords = None # default assignment
+        if _rel_pos_abdomen not in [" ",""]: #special empty case for _rel_pos_abdomen
+            _rel_pos_abdomen =  literal_eval(_rel_pos_abdomen) 
+            if type(_rel_pos_abdomen) in [list,tuple]:
+                if len(_rel_pos_abdomen)==2:
+                    if type(_rel_pos_abdomen[0])==int and type(_rel_pos_abdomen[1])==int:
+                        coords = _rel_pos_abdomen
         
         self.draw_imgFocus_abdomenPos(coords)
         self.widget_figtext_pos_coords_old = coords
