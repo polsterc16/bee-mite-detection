@@ -515,6 +515,8 @@ class ManualLabelHelper:
         
         print("wrote {} to DF.".format(self._rowIdx))
         
+        self.df_delete_idx_from_setUnlabeled_rowIndex(self._rowIdx)
+        
         
         self._storing_counter += 1 # inc counter
         if (self._storing_counter >= 10):
