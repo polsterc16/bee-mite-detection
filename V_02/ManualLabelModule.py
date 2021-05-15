@@ -162,7 +162,8 @@ class ManualLabelHelper:
         
         self._set_unlabeled_rowIndex = set(index1) | set(index2)
         
-        print("Unlabled imgs: {}".format(len(self._set_unlabeled_rowIndex)))
+        ul = len(self._set_unlabeled_rowIndex)
+        print("Unlabled imgs: {} -> {}".format(ul, self._df_size-ul))
         pass
     
     def df_get_rndm_idx_from_setUnlabeled_rowIndex(self):
