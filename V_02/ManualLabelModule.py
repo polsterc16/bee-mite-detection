@@ -168,24 +168,6 @@ class ManualLabelHelper:
     
     # -------------------------------------------------------------------------
     
-    def load_imgs(self,focus_name):
-        self._img_focus = None
-        self._img_roi = None
-        pass
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     def print_keybinds(self):
         print("[ESCAPE] Save to CSV")
@@ -194,9 +176,6 @@ class ManualLabelHelper:
     
     
     
-    
-
-    
     # FIGURE functions
     def _new_fig_(self):
         plt.close('all')
@@ -204,22 +183,14 @@ class ManualLabelHelper:
         # make new figure
         self.fig = plt.figure()
         
-        # # axes on left side for the image
-        # self.ax_img = plt.axes([0, 0, 0.5, 0.95])
-        # self.ax_img.axis("off")
-        # self.ax_img.title.set_text("title")
-        
         #int(self.fig.get_figwidth() * self.fig.dpi), int(self.fig.get_figheight() * self.fig.dpi)
         self.fig_shape = ( 600 , 600  )
         
-        # self.figim = self.fig.figimage( np.random.random((100,100)) )
-        # self.img_extr_temp = np.random.random((100,100))
         
         self.widget_figtext_left = \
             plt.figtext(0.01, 0.99, "title_top", 
                         va ="top", ha ="left", wrap = True, fontsize = 10) 
             
-        
         # axes on top to show the ROI image
         self.ax_roi = plt.axes([0, 0.45, 1, 0.5]) #[left,bottom,width,height]
         # self.ax_roi.axis("off")
