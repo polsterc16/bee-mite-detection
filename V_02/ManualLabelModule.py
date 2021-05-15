@@ -16,6 +16,8 @@ import pandas as pd
 import os
 import random
 
+from ast import literal_eval
+
 # import ImageHandlerModule as IHM
 
 # %% FUNCTIONS
@@ -24,7 +26,9 @@ class ManualLabelHelper:
     def __init__(self, dir_extraction = "extracted",
                  file_focus =       "Focus_csv.csv", 
                  dir_focus_img =    "focus", 
-                 dir_roi_img =      "roi"):
+                 dir_roi_img =      "roi",
+                 DEBUG=False):
+        self.DEBUG=DEBUG
         self.index = 0
         self.index_goto = 0
         self.index_max = 0
@@ -37,11 +41,12 @@ class ManualLabelHelper:
         self.df_startup()
         self.df_generate_setUnlabeled()
         
-        # self._new_fig_()
         # self.nav_goto_by_index()
         
         
         self.print_keybinds()
+        self._new_fig_()
+        self.nav_goto_rndm()
         pass
     
     # -------------------------------------------------------------------------
@@ -237,8 +242,9 @@ class ManualLabelHelper:
         box = rshBx(box,uBox)
         self.ax_checkbox = plt.axes(box) #[left,bottom,width,height]
         self.ax_checkbox_labels = ["+ BEE","- bee","+ SHARP","- sharp"]
-        self.widget_check = mpl.widgets.CheckButtons(self.ax_checkbox, 
-                                                     self.ax_checkbox_labels)
+        self.widget_checkbox = mpl.widgets.CheckButtons(self.ax_checkbox, 
+                                                        self.ax_checkbox_labels)
+        self.widget_checkbox.on_clicked(self.on_click_widget_checkbox)
         
         #axes for "Reload" button
         box = [0*0.3+0.4,   0*0.15,     0.3,    0.15]
@@ -315,23 +321,7 @@ class ManualLabelHelper:
         thismanager = plt.get_current_fig_manager()
         thismanager.resize(600,600)
         # thismanager.window.setGeometry(self.posX, self.posY, self.w, self.h)
-        if True: return
         
-        
-        
-        
-        
-        # make textbox widget
-        self.ax_textbox_j2_select = plt.axes([0.525+0.125, 0.1, 0.1, 0.075])
-        self.widget_textbox_j2_select = \
-            mpl.widgets.TextBox(self.ax_textbox_j2_select, "To:","1")
-        self.widget_textbox_j2_select.on_submit(self.txt_submit)
-        
-        self.widget_figtext = \
-            plt.figtext(0.75+0.01, 0.45, 
-                        "is bee: X\nmostly visible: X\nhas mite: X", 
-                        va ="top", ha ="left", wrap = True, fontsize = 10, 
-                        bbox ={'facecolor':'grey', 'alpha':0.1, 'pad':5}) 
         
         
         # save to csv on figure closing
@@ -345,13 +335,45 @@ class ManualLabelHelper:
     
     def on_close(self,event):
         # save to csv on figure closing
-        self.func_save_CSV()
+        # self.func_save_CSV()
         print("Figure closed.")
+        pass
+    
+    def on_click_widget_checkbox(self, event):
+        print("on_click_widget_checkbox")
+        # print(type(event))
+        print(self.widget_checkbox.get_status())
+        print(event)
+        
+        if event in self.ax_checkbox_labels:
+            old = self.ax_checkbox_status_old
+            states = self.widget_checkbox.get_status()
+            
+            # detect where to toggle
+            if event == self.ax_checkbox_labels[0]:     # if 1st button
+                if states[0] and states[1]:                 # check if 2nd button was active
+                    self.widget_checkbox.set_active(1)      # togge it (to off)
+            elif event == self.ax_checkbox_labels[1]:   # if 2nd button
+                if states[1] and states[0]:                 # check if 1st button was active
+                    self.widget_checkbox.set_active(0)      # togge it (to off)
+                    
+            elif event == self.ax_checkbox_labels[2]:   # if 3rd button
+                if states[2] and states[3]:                 # check if 4th button was active
+                    self.widget_checkbox.set_active(3)      # togge it (to off)
+            elif event == self.ax_checkbox_labels[3]:   # if 4th button
+                if states[3] and states[2]:                 # check if 3rd button was active
+                    self.widget_checkbox.set_active(2)      # togge it (to off)
+            
+            states = self.widget_checkbox.get_status()
+            diff = np.bitwise_xor(states, old)
+            pass
+        
+        
         pass
     
     def on_click_saveCSV(self, event):
         print("on_click_saveCSV")
-        self.func_save_CSV()
+        # self.func_save_CSV()
         pass
     
     def on_click_RstImgPos(self, event):
@@ -362,49 +384,49 @@ class ManualLabelHelper:
     
     def on_click_write_to_df(self, event):
         print("on_click_write_to_df")
-        state = self.widget_check.get_status()
-        self.df.loc[self.index,"isBee"] = state[0]
-        self.df.loc[self.index,"mostlyVisible"] = state[1]
-        self.df.loc[self.index,"hasMites"] = state[2]
+        # state = self.widget_checkbox.get_status()
+        # self.df.loc[self.index,"isBee"] = state[0]
+        # self.df.loc[self.index,"mostlyVisible"] = state[1]
+        # self.df.loc[self.index,"hasMites"] = state[2]
         
-        self.index_goto = self.index
-        self.nav_goto_by_index()
+        # self.index_goto = self.index
+        # self.nav_goto_by_index()
         pass
     
     def on_click_WnN(self, event):
         print("on_click_WnN")
-        state = self.widget_check.get_status()
-        self.df.loc[self.index,"isBee"] = state[0]
-        self.df.loc[self.index,"mostlyVisible"] = state[1]
-        self.df.loc[self.index,"hasMites"] = state[2]
+        # state = self.widget_checkbox.get_status()
+        # self.df.loc[self.index,"isBee"] = state[0]
+        # self.df.loc[self.index,"mostlyVisible"] = state[1]
+        # self.df.loc[self.index,"hasMites"] = state[2]
         
-        self.index_goto = min( self.index+1, self.index_max )
-        self.nav_goto_by_index()
+        # self.index_goto = min( self.index+1, self.index_max )
+        # self.nav_goto_by_index()
         pass
     
     def on_click_restore_from_df(self, event):
         print("on_click_restore_from_df")
-        self.index_goto = self.index
-        self.nav_goto_by_index()
+        # self.index_goto = self.index
+        # self.nav_goto_by_index()
         pass
     
     def on_click_j2_rndm(self, event):
         print("on_click_j2_rndm")
         # TODO
-        self.index_goto = 0
-        self.nav_goto_by_index()
+        # self.index_goto = 0
+        # self.nav_goto_by_index()
         pass
     
     def on_click_j2_prev(self, event):
         print("on_click_j2_prev")
-        self.index_goto = max( 0, self.index-1 )
-        self.nav_goto_by_index()
+        # self.index_goto = max( 0, self.index-1 )
+        # self.nav_goto_by_index()
         pass
     
     def on_click_j2_next(self, event):
         print("on_click_j2_next")
-        self.index_goto = min( self.index+1, self.index_max )
-        self.nav_goto_by_index()
+        # self.index_goto = min( self.index+1, self.index_max )
+        # self.nav_goto_by_index()
         pass
     
     def on_click_j2_goto(self, event):
@@ -426,7 +448,7 @@ class ManualLabelHelper:
         
         # if self.index_goto is unchanged (no valid input), then the display resets.
         # otherwise, the display updates to the entered value.
-        self.widget_textbox_j2_select.set_val( str(self.index_goto) )
+        self.widget_textbox_j2_goto.set_val( str(self.index_goto) )
         
         self.fig.canvas.draw()  # update the display manually
         
@@ -443,68 +465,140 @@ class ManualLabelHelper:
             self.on_click_WnN(None)
         pass
     
-    def nav_goto_by_index(self):
-        self.index = self.index_goto
-        self.df_row = self.df.loc[self.index,:]
+    def nav_goto_rndm(self):
+        rowIdx = self.df_get_rndm_idx_from_setUnlabeled_rowIndex()
+        self.nav_goto_rowIdx(rowIdx)
+        pass
+    
+    def nav_goto_position(self,position:int):
+        # only if the index is inside the possible range of positions
+        if position in [0, self._df_size-1]:
+            row = self._df_labels.iloc[position]
+            rowIdx = row.name
+            self.nav_goto_rowIdx(rowIdx)
+        # Else: nothing
+        pass
+    
+    def nav_goto_rowIdx(self,rowIdx):
+        self._rowIdx = rowIdx
+        self._df_row = self._df_labels.loc[self._rowIdx]         # fetch the row
+        self._df_position = self._df_labels.index.get_loc(self._rowIdx)   # fetch the position as integer
         
-        img_extr_path = self.path_MAIN + self.path_imgs + self.df_row["img_extr"]
-        img_roi_path = self.path_MAIN + self.path_showroi + self.df_row["img_overlay"]
+        img_roi = cv2.imread(self._df_row["roi_fpath"])          # fetch roi image
+        self._img_roi = cv2.cvtColor(img_roi, cv2.COLOR_BGR2RGB)    # make to RGB!!!
         
-        try:
-            self.img_extr = plt.imread(img_extr_path)
-            self.img_roi = plt.imread(img_roi_path)
-        except:
-            print("Exception at index ",self.index,". (Reading image)")
-            raise Exception("ERROR reading of images.") 
+        img_focus = cv2.imread(self._df_row["fpath"])            # fetch focus image
+        self._img_focus_backup = cv2.cvtColor(img_focus, cv2.COLOR_BGR2RGB)
+        self._img_focus_over = np.zeros(img_focus.shape, dtype=np.uint8) # make empty overlay of focus img
+        self.draw_imgFocus_centerContour()      # draw the center contour
         
-        self.txt_submit("")
+        
+        
+        self.txt_submit(str(self._df_position))
         self.update_fig()
+        pass
+    
+    def draw_imgFocus_centerContour(self):
+        """Write contour-center-cross into the overlay (blue channel)."""
+        shape = self._img_focus_backup.shape
+        dim = np.flip(shape[0:2])
+        img = np.zeros(shape[0:2], dtype=np.uint8) # clear blue channel
+        
+        # Fetch coors of contour center
+        posC = literal_eval( self._df_row["pos_center"] )
+        posA = literal_eval( self._df_row["pos_anchor"] )
+        pX = posC[0] - posA[0] # calc pos in focus image
+        pY = posC[1] - posA[1]
+        cv2.line(img, (pX,0), (pX,dim[1]), 255,2) #draw cross goring through center
+        cv2.line(img, (0,pY), (dim[0],pY), 255,2)
+        
+        # Fetch the info of the minAreaRect
+        minAreaRect = literal_eval( self._df_row["minAreaRect"] )
+        box = cv2.boxPoints(minAreaRect) # make a box
+        box = np.int0(box)
+        cv2.drawContours(img,[box],0,255,1) # draw box
+        
+        # write this img to blue channel of overlay
+        self._img_focus_over[:,:,2] = img 
+        self._draw_imgFocus_overlay()
+        pass
+    
+    def draw_imgFocus_beePos(self, px, py, radius=5):
+        """Write user bee pos into the overlay (red channel)."""
+        shape = self._img_focus_backup.shape
+        dim = np.flip(shape[0:2])
+        img = np.zeros(shape[0:2], dtype=np.uint8) # clear red channel
+        
+        # if the coords are int, then we draw the circle - otherwise we leave the red channel empty
+        if (type(px)==int) and (type(px)==int):
+            cv2.circle(img, (px,py), radius, 255, -1)
+        
+        # write this img to red channel of overlay
+        self._img_focus_over[:,:,0] = img 
+        self._draw_imgFocus_overlay()
+        pass
+    
+    def _draw_imgFocus_overlay(self):
+        """Write the overlay into '_img_focus_show'."""
+        self._img_focus_show = np.float32( self._img_focus_backup )     # prepare bg img for weighted addition
+        
+        mask = cv2.bitwise_or(self._img_focus_over[:,:,0], self._img_focus_over[:,:,2])   # make mask just from OR-ing the R and B channels together
+        cv2.accumulateWeighted(self._img_focus_over, self._img_focus_show, 0.25, mask=mask)
+        
+        self._img_focus_show = np.uint8( self._img_focus_show ) # back to uint8
         pass
     
     
     def update_fig(self):
-        self.fig_shape = ( int(self.fig.get_figwidth() * self.fig.dpi),
-                           int(self.fig.get_figheight() * self.fig.dpi) )
         
-        # self.ax_img.clear()
-        # self.ax_img.axis("off")
-        # self.ax_img.imshow(self.img_extr)
-        title = str(self.index) + ": " + str(self.df_row["img_extr"])
+        title = "{} ({})".format(self._rowIdx, self._df_position) 
         # self.ax_img.title.set_text(title)
         self.widget_figtext_left.set_text(title)
         
-        scale = 0.5
-        shape = self.img_extr.shape
-        dim = ( int(shape[1]*scale), int(shape[0]*scale) )
-        self.img_extr_temp = cv2.resize(self.img_extr, dsize=dim,
-                                     interpolation = cv2.INTER_AREA )
-        
-        self.figim.set_data(self.img_extr_temp)
-        # print("self.fig_shape",self.fig_shape)
-        # print("self.img_extr_temp.shape",self.img_extr_temp.shape)
-        self.figim.ox = int( self.fig_shape[0]/4 - self.img_extr_temp.shape[1]/2 )
-        self.figim.oy = int( self.fig_shape[1]/2 - self.img_extr_temp.shape[0]/2 )
-        # print("ox,oy",str((self.figim.ox,self.figim.oy)))
-        
         self.ax_roi.clear()
         self.ax_roi.axis("off")
-        self.ax_roi.imshow(self.img_roi)
-        self.ax_roi.title.set_text(self.df_row["img_overlay"])
+        self.ax_roi.imshow(self._img_roi)
         
-        index_list = ["isBee","mostlyVisible","hasMites"]
-        check_status = [self.df_row[k] for k in index_list]
-        figtext_list = ["{}: {}".format(k,self.df_row[k]) for k in index_list ]
+        self.ax_foc.clear()
+        self.ax_foc.axis("off")
+        self.ax_foc.imshow(self._img_focus_show)
         
-        # if (check_status[0]): self.widget_check.set_active(0)
-        # if (check_status[1]): self.widget_check.set_active(1)
-        # if (check_status[2]): self.widget_check.set_active(2)
+        # check status of saved data in DF
+        index_list = ["has_bee","img_sharp","rel_pos_abdomen"]
+        _has_bee =    self._df_row["has_bee"] 
+        if np.isnan(_has_bee): # we must differentiate between NaN and T/F data!
+            _has_bee_Y = False
+            _has_bee_N = False
+        else:
+            _has_bee_Y = _has_bee > 0
+            _has_bee_N = not _has_bee_Y
+            
+        _img_sharp =  self._df_row["img_sharp"] 
+        if np.isnan(_img_sharp):
+            _img_sharp_Y = False
+            _img_sharp_N = False
+        else:
+            _img_sharp_Y = _has_bee > 0
+            _img_sharp_N = not _img_sharp_Y
+            
+        _rel_pos_abdomen = self._df_row["rel_pos_abdomen"]
+        if _rel_pos_abdomen in [" ",""]: #special empty case for _rel_pos_abdomen
+            _rel_pos_abdomen = tuple()
+        else:
+            _rel_pos_abdomen = tuple( literal_eval(_rel_pos_abdomen) )
+            
+            
+        self.ax_checkbox_status_old = (_has_bee_Y, _has_bee_N, _img_sharp_Y, _img_sharp_N)
+        self.ax_checkbox_status = list(self.ax_checkbox_status_old)
+        
         self.ax_checkbox.clear()
-        self.widget_check = mpl.widgets.CheckButtons(self.ax_checkbox, 
-                                                     self.ax_checkbox_labels,
-                                                     check_status)
+        self.widget_checkbox = mpl.widgets.CheckButtons(self.ax_checkbox, 
+                                                        self.ax_checkbox_labels,
+                                                        self.ax_checkbox_status_old)
+        self.widget_checkbox.on_clicked(self.on_click_widget_checkbox)
         
         
-        figtext = figtext_list[0]+"\n"+figtext_list[1]+"\n"+figtext_list[2]
+        figtext = "" #figtext_list[0]+"\n"+figtext_list[1]+"\n"+figtext_list[2]
         self.widget_figtext.set_text(figtext)
     
         self.fig.canvas.draw()  # update the display manually
@@ -521,4 +615,8 @@ myHLH = ManualLabelHelper()
 my_df = myHLH._df_labels
 
 myHLH._new_fig_()
+myHLH.update_fig()
 myHLH.fig.show()
+
+b = myHLH.widget_checkbox
+# a = myHLH._a
