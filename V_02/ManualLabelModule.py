@@ -694,8 +694,10 @@ class ManualLabelHelper:
 # %% 
 class LabelInspectorClass:
     def __init__(self, dir_extraction = "extracted"):
-        
-        
+        self.set_dir_extracted(dir_extraction)
+        self.df_startup()
+        self.df_analyze()
+        self.show_info()
         pass
 
     # -------------------------------------------------------------------------
@@ -716,6 +718,85 @@ class LabelInspectorClass:
         All other files are assumed to be relative to this folder, unless an abs_path is specified."""
         self._dir_extracted = self.check_isdir(path)
         pass
+    
+    
+    
+    def df_startup(self):
+        """Setup for the dataframe:
+            
+        Defines file names, trys to load the label file or creats it, if not yet exists."""
+        fname_labels = "Labels"
+        
+        dir_extracted = self._dir_extracted
+        self._df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
+        self._df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
+        
+        # Check if [comma] separated value files exists : otherwise exception
+        self.check_isfile(self._df_fname_labels_csv)
+        
+        # read csv file
+        self._df_labels = pd.read_csv(self._df_fname_labels_csv, index_col=0)
+        self._df_labels.dropna(inplace=True) # get rid of all NaN value Rows
+        
+        self._df_size = len(self._df_labels)
+        print("df length: {}".format(self._df_size))
+        pass
+    
+    def df_analyze(self):
+        df = self._df_labels
+        self.df_beeYes = df.where(df["has_bee"] > 0)
+        self.df_beeYes.dropna(inplace=True)
+        self.df_beeNo =  df.where(df["has_bee"] <= 0)
+        self.df_beeNo.dropna(inplace=True)
+        pass
+    
+    def show_info(self):
+        df_bY = self.df_beeYes
+        df_bN = self.df_beeNo
+        
+        df_bYsY = df_bY.where(df_bY["img_sharp"]>0)
+        df_bYsY.dropna(inplace=True)
+        df_bYsN = df_bY.where(df_bY["img_sharp"]<=0)
+        df_bYsN.dropna(inplace=True)
+        
+        df_bNsY = df_bN.where(df_bN["img_sharp"]>0)
+        df_bNsY.dropna(inplace=True)
+        df_bNsN = df_bN.where(df_bN["img_sharp"]<=0)
+        df_bNsN.dropna(inplace=True)
+        print("+ BEE",len(df_bYsY), len(df_bYsN))
+        print("- bee",len(df_bNsY), len(df_bNsN))
+        wedge_sizes = [len(df_bYsY), len(df_bYsN), len(df_bNsN), len(df_bNsY)]
+        labels = ["is bee\n(sharp)","is bee\n(fuzzy)","no bee\n(fuzzy)","no bee\n(sharp)"]
+        colors = ["dodgerblue", "royalblue","gold", "yellow"]
+        
+        # plt.close('all')
+        
+        # make new figure
+        self.fig, self.ax = plt.subplots()
+        
+        self.ax.pie(wedge_sizes, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
+        txt = "Labeled Images: {}\nDetected Bees ({}) vs Empty Images ({})".format(len(self._df_labels), len(df_bYsY)+len(df_bYsN), len(df_bNsN)+len(df_bNsY))
+        self.ax.set_title(txt)
+        
+        self.fig.tight_layout()
+        self.fig.show()
+        pass
+    
+    def df_generate_setUnlabeled(self):
+        """Will search through 'has_bee' and 'img_sharp' columns for empty cells 
+        and generate a set from this."""
+        # df = self._df_labels
+        
+        # # check both 'has_bee' and 'img_sharp' columns for empty cells
+        # index1 = df['has_bee'].index[df['has_bee'].apply(np.isnan)]
+        # index2 = df['img_sharp'].index[df['img_sharp'].apply(np.isnan)]
+        
+        # self._set_unlabeled_rowIndex = set(index1) & set(index2)
+        # self._set_unlabeled_rowIndex_partly = set(index1) ^ set(index2)
+        
+        # ul = len(self._set_unlabeled_rowIndex) + len(self._set_unlabeled_rowIndex_partly)
+        # print("Unlabled imgs: {} -> {}".format(ul, self._df_size-ul))
+        pass
 
 # %% 
 
@@ -732,6 +813,7 @@ if __name__== "__main__":
     print("numpy.version = {}".format(np.__version__))
     print("matplotlib.version = {}".format(mpl.__version__))
     print("pandas.version = {}".format(pd.__version__))
+    print()
     
     
     # Window Cleanup
@@ -752,6 +834,10 @@ if __name__== "__main__":
 
     # %%
     if TEST == 2:
+        myLIC = LabelInspectorClass()
+        my_df = myLIC._df_labels
+        df_beeY = myLIC.df_beeYes
+        df_beeN = myLIC.df_beeNo
         
         pass
     
