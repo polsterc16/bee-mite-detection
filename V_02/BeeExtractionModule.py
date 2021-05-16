@@ -39,114 +39,6 @@ import PlotHelperModule as PHM
 
 
 # %% CLASS DEFINES
-# class BackgroundImageClass:
-#     def __init__(self, ILO, start_index=0, alpha_weight=0.05):
-#         self._ILO = ILO
-#         self.set_alpha_weight(alpha_weight)
-#         self._index=0
-        
-#         self.reset(times=1)
-#         pass
-    
-#     def set_alpha_weight(self,alpha_weight):
-#         """Defines with which weight new images are added to the background 
-#         in order to gain the running average.
-        
-#         alpha_weight : float between 0 and 1. """
-#         assert alpha_weight >= 0
-#         assert alpha_weight <= 1
-#         self.alpha = alpha_weight
-#         pass
-    
-#     def reset(self, start_index=0, times=1):
-#         """Will set the background image to the image at 'start_index' 
-#         in the ImageLoaderClass object and then update a number of 
-#         [times - 1] times. (overall: still uses [times] images)"""
-#         assert start_index >= 0     # start_index must be positive int
-#         assert times >= 1           # must be >= 1
-        
-#         index = start_index
-#         self.set_bg_new(index)
-        
-#         # perform [times] updates on the bg, if set to greater than '1'
-#         if times > 1:
-#             for i in tqdm(range(times-1),initial=1,total=times, desc="Reset BG (start_index={})".format(start_index)):
-#                 index += 1
-#                 self._update_bg_once(index)
-#         pass
-    
-#     def set_bg_new(self, index=0):
-#         """Will overwrite the background image data with the image at 
-#         'index' in the ImageLoaderClass object."""
-#         assert index >= 0     # index must be positive int
-        
-#         img_new = self._ILO.get_img(index)      # load new image
-#         self.img_bg = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
-        
-#         self._index = index
-#         pass
-    
-#     def update_bg(self,start_index:int, times=1):
-#         """Will update the background image a number of [times] times, from 
-#         the position of 'start_index' in the ImageLoaderClass object."""
-#         assert start_index >= 0     # start_index must be positive int
-#         assert times >= 1           # must be >= 1
-        
-#         index = start_index
-        
-#         # if only ONE time, then without progressbar
-#         if times == 1:
-#             self._update_bg_once(index)
-#         else: #otherwise with progress bar
-#             for i in tqdm(range(times), desc="Update BG (start_index={})".format(start_index)):
-#                 self._update_bg_once(index)
-#                 index += 1
-#         pass
-    
-#     def _update_bg_once(self,index:int):
-#         """Will update the background image ONCE, from 
-#         the position of 'index' in the ImageLoaderClass object."""
-#         if index < 0: return # do nothing if we pass a negative value
-    
-#         # load new image
-#         img_new = self._ILO.get_img(index)
-#         # weighted accumulation
-#         assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
-#         cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
-        
-#         self._index = index
-#         pass
-    
-#     def get_bg_diff(self,img,inverse=True):
-#         """
-#         Calculates the difference between the background image and the provided 'img'.
-        
-#         Due to the bees being dark (lower values) compared to the light background 
-#         (higher values), we must subtract the 'img' from 'bg' (inverse=True), 
-#         to get positive values for the position of NEW bees.
-        
-#         (positions were bees have left will have negative values, but those 
-#         can be ignored later on, by casting back to uint8)
-
-#         Parameters
-#         ----------
-#         img : : numpy.ndarray
-#             Grayscale uint8 image.
-#         inverse : : Bool, optional
-#             Defines whether diff=img-bg (False), or diff=bg-img (True). The default is True.
-
-#         Returns
-#         -------
-#         img_diff : : numpy.ndarray
-#             Grayscale int16 image.
-#         """
-#         if inverse:
-#             img_diff = np.int16(self.img_bg) - np.int16(img)
-#         else:
-#             img_diff = np.int16(img) - np.int16(self.img_bg)
-#         return img_diff
-    
-#%%
 
 class ParentImageClass:
     def __init__(self, ILO: IHM.ImageLoaderClass, 
@@ -163,8 +55,6 @@ class ParentImageClass:
                  DEBUG=False):
         self._ILO = ILO
         self._path_ILO = self._ILO._IFC_path
-        self._path_parent = self._ILO.f_path
-        self._fname_parent = self._ILO.f_name
         
         self._ref_bg_img = ref_bg_img
         self._alpha_bg = alpha_bg
@@ -181,13 +71,6 @@ class ParentImageClass:
         self.set_focus_bg_gauss_kernel_size(focus_bg_gauss_kernel_size)
         self.set_focus_dilate_kernel_size(focus_dilate_kernel_size)
         
-        # # deepcopy of image
-        # self._img = self._ILO.get_img(self._index).copy()
-        # self._dim = (self._img.shape[1],self._img.shape[0])
-        # # deepcopy of image (original)
-        # self._orig_img = self._ILO.get_img_orig(self._index).copy()
-        # self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
-        
         # init some child objects/vars
         self.contour_list_valid = []
         self.contour_list_raw = []
@@ -201,12 +84,6 @@ class ParentImageClass:
         self.process_2(DEBUG=DEBUG)
         self.process_3()
         
-        
-        # # Fill the child list with BeeFocusImage objects
-        # for i in range(len(self.contour_list)):
-        #     self.child_list.append(BeeFocusImage(self,i,self.contour_list[i],
-        #                                          self._focus_bg_gauss_kernel_size,
-        #                                          self._focus_dilate_kernel_size))
         pass
     
     ### -----------------------------------------------------------------------
@@ -267,6 +144,9 @@ class ParentImageClass:
         """fetch the first image (grayscale of original)"""
         self.img["01 orig"] = self._ILO.get_img_orig(self._index)
         self.img["00 gray"] = self._ILO.get_img(self._index)
+        
+        self._path_parent = self._ILO.f_path
+        self._fname_parent = self._ILO.f_name
         
         if DEBUG:
             imgs = [self.img["00 gray"]]
@@ -453,7 +333,6 @@ class ParentImageClass:
         # fetch gray source image
         img_bg = cv2.cvtColor( self.img["00 gray"].copy(), cv2.COLOR_GRAY2BGR )
         img_bg_f = np.float32(img_bg)
-        
         
         # img for foreground overlay, which will be weighted added
         img_overlay = np.zeros(img_bg.shape,dtype=np.uint8)
@@ -960,15 +839,6 @@ class BeeExtractionHandler:
             
         pass
     
-    # def check_startup(self, except_en=True):
-    #     """Returns True, if the startup is complete. Can throw an exception if False."""
-    #     if self._startup == self._startup_target:
-    #         return True
-    #     else:
-    #         if except_en: raise Exception("Startup not complete!")
-    #         return False
-    #     pass
-    
     def df_startup(self):
         fname_parent = "Parent"
         fname_focus =  "Focus"
@@ -1054,9 +924,6 @@ class BeeExtractionHandler:
         self.set_bg_new(self._index, min([30, self.src_len-1]) ) # setup bg image, 30 prepare iterations, if possible
         
         if times < 1: times=1   # ignore iterations less than 1
-        
-        # # set up the BIC
-        # self.p_BIC_jump_to_index_before_reset(start_index, prepare_len)
         
         # iterate 
         ret = self.p_process_iterate(times)
@@ -1191,11 +1058,11 @@ if __name__== "__main__":
         # myB.set_BIC_properties()
         
         #%%
-        number = 300
+        number = 100
         import datetime
         t1 = datetime.datetime.now()
         
-        myB.p_process(0,number)
+        myB.p_process(75,number)
         
         t2 = datetime.datetime.now()
         dt = (t2-t1).total_seconds()
