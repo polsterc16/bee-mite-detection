@@ -39,118 +39,119 @@ import PlotHelperModule as PHM
 
 
 # %% CLASS DEFINES
-class BackgroundImageClass:
-    def __init__(self, ILO, start_index=0, alpha_weight=0.05):
-        self._ILO = ILO
-        self.set_alpha_weight(alpha_weight)
-        self._index=0
+# class BackgroundImageClass:
+#     def __init__(self, ILO, start_index=0, alpha_weight=0.05):
+#         self._ILO = ILO
+#         self.set_alpha_weight(alpha_weight)
+#         self._index=0
         
-        self.reset(times=1)
-        pass
+#         self.reset(times=1)
+#         pass
     
-    def set_alpha_weight(self,alpha_weight):
-        """Defines with which weight new images are added to the background 
-        in order to gain the running average.
+#     def set_alpha_weight(self,alpha_weight):
+#         """Defines with which weight new images are added to the background 
+#         in order to gain the running average.
         
-        alpha_weight : float between 0 and 1. """
-        assert alpha_weight >= 0
-        assert alpha_weight <= 1
-        self.alpha = alpha_weight
-        pass
+#         alpha_weight : float between 0 and 1. """
+#         assert alpha_weight >= 0
+#         assert alpha_weight <= 1
+#         self.alpha = alpha_weight
+#         pass
     
-    def reset(self, start_index=0, times=1):
-        """Will set the background image to the image at 'start_index' 
-        in the ImageLoaderClass object and then update a number of 
-        [times - 1] times. (overall: still uses [times] images)"""
-        assert start_index >= 0     # start_index must be positive int
-        assert times >= 1           # must be >= 1
+#     def reset(self, start_index=0, times=1):
+#         """Will set the background image to the image at 'start_index' 
+#         in the ImageLoaderClass object and then update a number of 
+#         [times - 1] times. (overall: still uses [times] images)"""
+#         assert start_index >= 0     # start_index must be positive int
+#         assert times >= 1           # must be >= 1
         
-        index = start_index
-        self.set_bg_new(index)
+#         index = start_index
+#         self.set_bg_new(index)
         
-        # perform [times] updates on the bg, if set to greater than '1'
-        if times > 1:
-            for i in tqdm(range(times-1),initial=1,total=times, desc="Reset BG (start_index={})".format(start_index)):
-                index += 1
-                self._update_bg_once(index)
-        pass
+#         # perform [times] updates on the bg, if set to greater than '1'
+#         if times > 1:
+#             for i in tqdm(range(times-1),initial=1,total=times, desc="Reset BG (start_index={})".format(start_index)):
+#                 index += 1
+#                 self._update_bg_once(index)
+#         pass
     
-    def set_bg_new(self, index=0):
-        """Will overwrite the background image data with the image at 
-        'index' in the ImageLoaderClass object."""
-        assert index >= 0     # index must be positive int
+#     def set_bg_new(self, index=0):
+#         """Will overwrite the background image data with the image at 
+#         'index' in the ImageLoaderClass object."""
+#         assert index >= 0     # index must be positive int
         
-        img_new = self._ILO.get_img(index)      # load new image
-        self.img_bg = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
+#         img_new = self._ILO.get_img(index)      # load new image
+#         self.img_bg = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
         
-        self._index = index
-        pass
+#         self._index = index
+#         pass
     
-    def update_bg(self,start_index:int, times=1):
-        """Will update the background image a number of [times] times, from 
-        the position of 'start_index' in the ImageLoaderClass object."""
-        assert start_index >= 0     # start_index must be positive int
-        assert times >= 1           # must be >= 1
+#     def update_bg(self,start_index:int, times=1):
+#         """Will update the background image a number of [times] times, from 
+#         the position of 'start_index' in the ImageLoaderClass object."""
+#         assert start_index >= 0     # start_index must be positive int
+#         assert times >= 1           # must be >= 1
         
-        index = start_index
+#         index = start_index
         
-        # if only ONE time, then without progressbar
-        if times == 1:
-            self._update_bg_once(index)
-        else: #otherwise with progress bar
-            for i in tqdm(range(times), desc="Update BG (start_index={})".format(start_index)):
-                self._update_bg_once(index)
-                index += 1
-        pass
+#         # if only ONE time, then without progressbar
+#         if times == 1:
+#             self._update_bg_once(index)
+#         else: #otherwise with progress bar
+#             for i in tqdm(range(times), desc="Update BG (start_index={})".format(start_index)):
+#                 self._update_bg_once(index)
+#                 index += 1
+#         pass
     
-    def _update_bg_once(self,index:int):
-        """Will update the background image ONCE, from 
-        the position of 'index' in the ImageLoaderClass object."""
-        if index < 0: return # do nothing if we pass a negative value
+#     def _update_bg_once(self,index:int):
+#         """Will update the background image ONCE, from 
+#         the position of 'index' in the ImageLoaderClass object."""
+#         if index < 0: return # do nothing if we pass a negative value
     
-        # load new image
-        img_new = self._ILO.get_img(index)
-        # weighted accumulation
-        assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
-        cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
+#         # load new image
+#         img_new = self._ILO.get_img(index)
+#         # weighted accumulation
+#         assert img_new.shape == self.img_bg.shape    # ensure that we can add them (same dimensions)
+#         cv2.accumulateWeighted( img_new, self.img_bg, self.alpha)
         
-        self._index = index
-        pass
+#         self._index = index
+#         pass
     
-    def get_bg_diff(self,img,inverse=True):
-        """
-        Calculates the difference between the background image and the provided 'img'.
+#     def get_bg_diff(self,img,inverse=True):
+#         """
+#         Calculates the difference between the background image and the provided 'img'.
         
-        Due to the bees being dark (lower values) compared to the light background 
-        (higher values), we must subtract the 'img' from 'bg' (inverse=True), 
-        to get positive values for the position of NEW bees.
+#         Due to the bees being dark (lower values) compared to the light background 
+#         (higher values), we must subtract the 'img' from 'bg' (inverse=True), 
+#         to get positive values for the position of NEW bees.
         
-        (positions were bees have left will have negative values, but those 
-        can be ignored later on, by casting back to uint8)
+#         (positions were bees have left will have negative values, but those 
+#         can be ignored later on, by casting back to uint8)
 
-        Parameters
-        ----------
-        img : : numpy.ndarray
-            Grayscale uint8 image.
-        inverse : : Bool, optional
-            Defines whether diff=img-bg (False), or diff=bg-img (True). The default is True.
+#         Parameters
+#         ----------
+#         img : : numpy.ndarray
+#             Grayscale uint8 image.
+#         inverse : : Bool, optional
+#             Defines whether diff=img-bg (False), or diff=bg-img (True). The default is True.
 
-        Returns
-        -------
-        img_diff : : numpy.ndarray
-            Grayscale int16 image.
-        """
-        if inverse:
-            img_diff = np.int16(self.img_bg) - np.int16(img)
-        else:
-            img_diff = np.int16(img) - np.int16(self.img_bg)
-        return img_diff
+#         Returns
+#         -------
+#         img_diff : : numpy.ndarray
+#             Grayscale int16 image.
+#         """
+#         if inverse:
+#             img_diff = np.int16(self.img_bg) - np.int16(img)
+#         else:
+#             img_diff = np.int16(img) - np.int16(self.img_bg)
+#         return img_diff
     
 #%%
 
 class ParentImageClass:
     def __init__(self, ILO: IHM.ImageLoaderClass, 
-                 BGHandler: BackgroundImageClass, 
+                 ref_bg_img, 
+                 alpha_bg,
                  index:int,
                  path_extr:str,
                  gauss_blurr_size=5, otsu_min_threshold=10,
@@ -164,7 +165,10 @@ class ParentImageClass:
         self._path_ILO = self._ILO._IFC_path
         self._path_parent = self._ILO.f_path
         self._fname_parent = self._ILO.f_name
-        self._BG_ref = BGHandler
+        
+        self._ref_bg_img = ref_bg_img
+        self._alpha_bg = alpha_bg
+        
         self._index = index
         self.set_path_extracted(path_extr)
         
@@ -177,12 +181,12 @@ class ParentImageClass:
         self.set_focus_bg_gauss_kernel_size(focus_bg_gauss_kernel_size)
         self.set_focus_dilate_kernel_size(focus_dilate_kernel_size)
         
-        # deepcopy of image
-        self._img = self._ILO.get_img(self._index).copy()
-        self._dim = (self._img.shape[1],self._img.shape[0])
-        # deepcopy of image (original)
-        self._orig_img = self._ILO.get_img_orig(self._index).copy()
-        self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
+        # # deepcopy of image
+        # self._img = self._ILO.get_img(self._index).copy()
+        # self._dim = (self._img.shape[1],self._img.shape[0])
+        # # deepcopy of image (original)
+        # self._orig_img = self._ILO.get_img_orig(self._index).copy()
+        # self._orig_dim = (self._orig_img.shape[1],self._orig_img.shape[0])
         
         # init some child objects/vars
         self.contour_list_valid = []
@@ -258,8 +262,10 @@ class ParentImageClass:
     
     ### -----------------------------------------------------------------------
     
+    
     def p00_fetch_src_gray(self, DEBUG=False):
         """fetch the first image (grayscale of original)"""
+        self.img["01 orig"] = self._ILO.get_img_orig(self._index)
         self.img["00 gray"] = self._ILO.get_img(self._index)
         
         if DEBUG:
@@ -269,9 +275,17 @@ class ParentImageClass:
         pass
     
     def p10_diff_from_bg(self, DEBUG=False):
-        """get the int16 difference image, convert it to uint8"""
-        diff_int16 = self._BG_ref.get_bg_diff(self.img["00 gray"])
+        """get the int16 difference image, convert it to uint8 (adn updates the BG img)"""
+        s1=self._ref_bg_img.shape
+        s2=self.img["00 gray"].shape
+        if s1 != s2: raise Exception("BG image and GRAY image do not have the same shape!")
         
+        # calc diff
+        diff_int16 = img_diff = np.int16(self._ref_bg_img) - np.int16(self.img["00 gray"])
+        # update bg img
+        cv2.accumulateWeighted( self.img["00 gray"], self._ref_bg_img, self._alpha_bg)
+        
+        # clean up difference image
         # This ignores artefacts from bees leaving the image (which would be negative)
         _,diff_int16 = cv2.threshold(diff_int16,0,255,cv2.THRESH_TOZERO)
         
@@ -722,7 +736,7 @@ class BeeFocusImage:
                  bee_ID: int, contour, 
                  bg_gauss_kernel_size=11, dilate_kernel_size=32):
         self.parent = parent
-        self.parent_orig = self.parent._orig_img
+        self.parent_orig = self.parent.img["01 orig"]
         self.parent_dim = self.parent._ILO._scale_dim
         self.bee_ID = bee_ID
         self.focus_size = self.parent._focus_size
@@ -877,12 +891,17 @@ class BeeFocusImage:
 
 #%%
 class BeeExtractionHandler:
-    def __init__(self, path_extraction ):
-        self._startup = 0
-        self._startup_target = 3 #must be the highest integer assigned by the startup functions
-        
+    def __init__(self, path_extraction, 
+                 src_img_path, src_max_files=0, src_extension_list=("png",),
+                 img_dim=(400,300), img_mask_rel=(0,0,1,1), img_resize=False,
+                 bg_alpha_weight=0.1):
         self._index = 0
+        
         self.set_path_extracted(path_extraction)
+        self.set_IFC_properties(src_img_path, src_max_files, src_extension_list)
+        self.set_ILC_properties(img_dim, img_mask_rel, img_resize)
+        self.set_bg_alpha_weight(bg_alpha_weight)
+        
         self.df_startup()
         
         pass
@@ -909,42 +928,46 @@ class BeeExtractionHandler:
         """Sets the ImageFinderClass."""
         self._IFC = IHM.ImageFinderClass(src_img_path, src_extension_list, src_max_files)
         self.src_len = self._IFC.size # number of imgs in ILC
-        
-        self._startup = 1 # IFC freshly set
         pass
     
     def set_ILC_properties(self, img_dim=(400,300), img_mask_rel=(0,0,1,1), img_resize=False):
         """Sets the ImageLoaderClass."""
-        if self._startup < 1:
-            print("Call 'set_IFC_properties' first!")
-            return 0
-        
-        self._ILC = IHM.ImageLoaderClass(self._IFC, dim=img_dim, 
-                                         mask_rel=img_mask_rel, 
-                                         resize_en=img_resize, 
-                                         grayscale_en=True)
-
-        self._startup = 2 # ILC freshly set
+        self._ILC = IHM.ImageLoaderClass(self._IFC, dim=img_dim, mask_rel=img_mask_rel, 
+                                         resize_en=img_resize, grayscale_en=True)
         pass
     
-    def set_BIC_properties(self, start_index=0, alpha=0.1):
+    def set_bg_alpha_weight(self, alpha=0.1):
         """Sets the BackgroundImageClass."""
-        if self._startup < 2:
-            print("Call 'set_ILC_properties' first!")
-            return 0
-        
-        self._BIC = BackgroundImageClass(self._ILC, start_index, alpha)
-        self._startup = 3 # BIC freshly set
+        if alpha >= 0 and alpha <=1:
+            self._bg_alpha_weight = alpha
+        else:
+            raise Exception("'bg_alpha_weight' must  be a number between 0 and 1.")
         pass
     
-    def check_startup(self, except_en=True):
-        """Returns True, if the startup is complete. Can throw an exception if False."""
-        if self._startup == self._startup_target:
-            return True
-        else:
-            if except_en: raise Exception("Startup not complete!")
-            return False
+    def set_bg_new(self, index=0, prepare=30):
+        """Will overwrite the background image data with the image at 
+        'index' in the ImageLoaderClass object."""
+        # find the start index for making a few bg iterations
+        if prepare < 1: prepare=1
+        index_start = max([0, index-prepare])
+        
+        img_new = self._ILC.get_img(index_start)      # load new image
+        self._ref_bg_img = np.float32( img_new )     # set new img as a float array (important for weighted addition!!!)
+        
+        for i in range(prepare-1):
+            img_new = self._ILC.get_img(index_start+1+i)      # load new image
+            cv2.accumulateWeighted( img_new, self._ref_bg_img, self._bg_alpha_weight)
+            
         pass
+    
+    # def check_startup(self, except_en=True):
+    #     """Returns True, if the startup is complete. Can throw an exception if False."""
+    #     if self._startup == self._startup_target:
+    #         return True
+    #     else:
+    #         if except_en: raise Exception("Startup not complete!")
+    #         return False
+    #     pass
     
     def df_startup(self):
         fname_parent = "Parent"
@@ -1019,7 +1042,6 @@ class BeeExtractionHandler:
     # PROCESSING functions
     # -------------------------------------------------------------------------
     def p_process(self,start_index:int, times=1, prepare_len=10) -> int:
-        self.check_startup(True)
         # check if index possible
         if type(start_index)==type(None):
             start_index = self.read_last_index_to_file()
@@ -1029,27 +1051,32 @@ class BeeExtractionHandler:
             return -1
         self._index = start_index
         
+        self.set_bg_new(self._index, min([30, self.src_len-1]) ) # setup bg image, 30 prepare iterations, if possible
+        
         if times < 1: times=1   # ignore iterations less than 1
         
-        # set up the BIC
-        self.p_BIC_jump_to_index_before_reset(start_index, prepare_len)
+        # # set up the BIC
+        # self.p_BIC_jump_to_index_before_reset(start_index, prepare_len)
         
         # iterate 
         ret = self.p_process_iterate(times)
         return self._index
     
     def p_process_iterate(self,times=1) -> int:
-        self.check_startup(True)
         if times < 1: times = 1
         
+        time_size = 200
+        
         ILC = self._ILC
-        BIC = self._BIC
+        # BIC = self._BIC
         path_extr = self.get_path_extracted()
         
-        if times <= 100:
+        if times <= time_size:
             for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
                 # create parent class object
-                parent = ParentImageClass(ILC, BIC, self._index, path_extr)
+                parent = ParentImageClass(ILC, 
+                                          self._ref_bg_img,self._bg_alpha_weight, 
+                                          self._index, path_extr)
                 ds_dict = parent.get_dataseries_dict()
                 ds_parent = ds_dict["parent"]
                 ds_child_list = ds_dict["children"]
@@ -1065,7 +1092,6 @@ class BeeExtractionHandler:
                 # print(self._df_parent.info())
                 # print(self._df_focus.info())
                 
-                self.p_BIC_goto_index_before(self._index)
                 self._index += 1 #inc index
                 
                 # Stop, if the last img has been reached
@@ -1076,13 +1102,16 @@ class BeeExtractionHandler:
             self.write_last_index_to_file()
         else:
             j=0
-            supertime = math.ceil(times/100)
+            supertime = math.ceil(times/time_size)
             for i in range(supertime):
                 # print("\nIteration package {}/{} (from {})".format(i+1, supertime, self._index))
                 
-                for k in tqdm(range( min([100,times-j-1]) ),desc="Iteration package {}/{} (from {: 4})".format(i+1, supertime, self._index)):
+                for k in tqdm(range( min([time_size,times-j]) ),desc="Iteration package {}/{} (from {: 4})".format(i+1, supertime, self._index)):
                     # create parent class object
-                    parent = ParentImageClass(ILC, BIC, self._index, path_extr)
+                    
+                    parent = ParentImageClass(ILC, 
+                                              self._ref_bg_img,self._bg_alpha_weight, 
+                                              self._index, path_extr)
                     ds_dict = parent.get_dataseries_dict()
                     ds_parent = ds_dict["parent"]
                     ds_child_list = ds_dict["children"]
@@ -1098,7 +1127,6 @@ class BeeExtractionHandler:
                     # print(self._df_parent.info())
                     # print(self._df_focus.info())
                     
-                    self.p_BIC_goto_index_before(self._index)
                     self._index += 1 #inc index
                     
                     # Stop, if the last img has been reached
@@ -1114,43 +1142,6 @@ class BeeExtractionHandler:
             
         return self._index
     
-    def p_BIC_jump_to_index_before_reset(self,index:int, prepare_len=10) -> int:
-        """Will perform a reset of the BIC image and update it 'prepare_len' times.
-        
-        It will try to start resetting before the specified index (at index-1), but will update ahead, if not otherwise possible.
-        
-        Returns the index which was last used to update the BIC image. (Returns -1 in case of error)"""
-        self.check_startup(True)
-        
-        if (index < 0) or (index >= self.src_len):
-            print("Index is outside of list size.")
-            return -1
-        
-        if prepare_len < 0: prepare_len = 0 # ignore negative prepare_len
-        
-        index_bic = index - 1 - prepare_len
-        if index_bic < 0: index_bic = 0     # ignore negative start positions
-        
-        self._BIC.reset(index_bic, prepare_len)
-        
-        return self._BIC._index #return the index the BIC is currently at
-    
-    def p_BIC_goto_index_before(self,index:int) -> int:
-        """Will update the BIC image with the image before the specified index (index-1), if possible.
-        
-        Returns the index which was last used to update the BIC image. (Returns -1 in case of error)"""
-        self.check_startup(True)
-        
-        if (index < 0) or (index >= self.src_len):
-            print("Index is outside of list size.")
-            return -1
-        
-        index_bic = index - 1 
-        if index_bic < 0: index_bic = 0     # ignore negative start positions
-        
-        self._BIC.update_bg(index_bic)
-        
-        return self._BIC._index #return the index the BIC is currently at
     
     
     
@@ -1158,264 +1149,6 @@ class BeeExtractionHandler:
     
     
     
-    
-    
-    
-    
-    
-    #%%
-    
-    # # TODO: Update if necessaray
-    # def init_df(self,list_cols):
-    #     assert type(list_cols) in [list, tuple]
-    #     self.df = pd.DataFrame(columns=list_cols)
-    #     pass
-    
-    
-    
-    
-    # # EXECUTION of Image Extraction -------------------------------------------
-    
-    # # Done
-    # def restart(self, prepare_time=5):
-    #     """
-    #     Resets index. Sets first image as the Background image. \
-    #     Loads the next x images to generate a more 'realistic' background image. \
-    #     Resets Index.
-
-    #     Parameters
-    #     ----------
-    #     prepare_time : : INTEGER, optional
-    #         How many images to load for generating the initial background image. \
-    #         The default is 5.
-    #     """
-    #     print()
-    #     print("-- Restarting Handler")
-        
-    #     # 1 : load the first image
-    #     self.img_index = 0
-    #     self.load_img(self.img_index)
-        
-    #     # 2 : perform weighted mean (set current image as background)
-    #     self.add_to_background_img(self.img["00 src"], overwrite=True)
-        
-    #     # 3 : use the first 'prepare_time' number of images to get a usaable background
-    #     assert prepare_time >= 0 # We need a positive number of times to repeat this
-        
-    #     # usage of loading bar indicator (#tqdm)
-    #     for i in tqdm(range(prepare_time), desc="Restart: Preparing Background image"):
-    #         # Repeated loading of images to generate a better BG image for the beginning
-    #         self.load_img(self.img_index)
-    #         self.add_to_background_img(self.img["00 src"])
-    #         self.img_index += 1 
-        
-    #     self.img_index = 0      # reset index
-    #     pass
-    
-    
-    # # TODO: Update if necessaray
-    # def iterate(self, times = 1):
-    #     """
-    #     This function will perform ALL extraction steps for the set number \
-    #     of images. (incremental increase from the current index) """
-    #     assert times>0  # MUST be a number >= 1 !!!
-        
-    #     # try:
-    #     for i in range(times):
-    #         # 10 : increment the index and check if index is still inside the list
-    #         self.img_index += 1
-    #         if (self.img_index >= self.ILO._size):
-    #             print("No more Iterations possible. \
-    #                   Index has reached end of img_name_list.")
-    #             return
-            
-    #         # 20 : update weighted mean with last image (BEFORE loading a new image)
-    #         self.add_to_background_img(img_new=self.img["00 src"])
-            
-    #         # 30 : load the current image
-    #         self.load_img(self.img_index)
-            
-    #         # 40 : calc difference from blurr to mean
-    #         self.difference_from_BG(source=self.img["00 src"]) # => self.img["10 diff"]
-            
-            
-    #         # 50 : threshold of the difference
-    #         otsu_th = self.threshold_diff(source=self.img["10 diff"]) # => self.img["20 threshold"]
-            
-    #         # 60 : Check, if otsu threshold may be empty
-    #         if otsu_th < self.otsu_min_threshold:
-    #             # THIS IMAGE IS EMPTY!!! STOP HERE!
-    #             print("empty image")
-                
-    #         else:
-            
-    #             # gaussian blurr
-    #             self.reduce_open_close(source=self.img["20 threshold"], DEBUG=True) # => self.img["30 reduced"]
-                
-    #             raise Exception("DEBUG stop")
-                
-                
-    #             # selection and seperation
-    #             self.get_contours_reduced(source=self.img["30 reduced"])
-                
-                
-    #             self.extract_from_contours(source_contours=self.cont_good, \
-    #                                        source_img=self.img_set_resize, \
-    #                                        orig_img=self.img_set_original)
-            
-            
-    #         # dilate
-    #         # self.dilation(source=self.img_set_reduced)
-            
-    #         # #overlay
-    #         # self.overlay(source=self.img_set_resize)
-    #         # self.draw_contours_reduced(target=self.img_set_mask_RGB)
-            
-    #         pass
-    #     path = self.prop_path_extracted + "Extracted.csv"
-    #     self.df.to_csv(path,sep=";")
-    #     pass
-    
-    
-    # # ADDITION of Plotting ----------------------------------------------------
-    
-    # # TODO: Update if necessaray
-    # def iter_and_plot(self, times = 1):
-    #     self.iterate(times)        
-    #     plt.close('all')
-        
-    #     self.fig, self.ax = plt.subplots( 3,2 )
-        
-    #     # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    #     row,col = 0,0
-    #     title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
-    #     self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
-    #     # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-        
-    #     row,col = 0,1
-    #     title = "mean"
-    #     self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-    #     row,col = 1,0
-    #     title = "diff"
-    #     self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-    #     row,col = 1,1
-    #     title = "thres"
-    #     self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-    #     row,col = 2,0
-    #     title = "gauss reduced"
-    #     self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-    #     row,col = 2,1
-    #     title = "dilated"
-    #     self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray') 
-    #     self.ax[row,col].title.set_text(title), self.ax[row,col].axis("off")
-        
-    #     #adding buttons
-    #     plt.subplots_adjust(top=0.9)
-    #     plt.subplots_adjust(bottom=0,left=0,right=1)
-        
-    #     ax_textbox = plt.axes([0.05, 0.94, 0.1, 0.05])
-    #     ax_iter_x =  plt.axes([0.25, 0.94, 0.2, 0.05]) #posx, posy, width, height
-    #     ax_iter_10 = plt.axes([0.50, 0.94, 0.2, 0.05])
-    #     ax_iter_20 = plt.axes([0.75, 0.94, 0.2, 0.05])
-        
-    #     self.text_box_iter = mpl.widgets.TextBox(ax_textbox, "Iter","1")
-    #     self.text_box_iter.on_text_change(self.txt_change)
-        
-    #     self.but_iter_x_value = 1 ##########
-    #     self.but_iter_x =  mpl.widgets.Button(ax_iter_x,  "Iter({})".format(str(self.but_iter_x_value)) )
-        
-    #     self.but_iter_10 = mpl.widgets.Button(ax_iter_10, "Iter(10)")
-    #     self.but_iter_20 = mpl.widgets.Button(ax_iter_20, "Iter(20)")
-    #     self.but_iter_x.on_clicked(self.on_click_iter_x)
-    #     self.but_iter_10.on_clicked(self.on_click_iter_10)
-    #     self.but_iter_20.on_clicked(self.on_click_iter_20)
-    #     self.but_iter_x.color = 'cyan'
-    #     self.but_iter_10.color = 'cyan'
-    #     self.but_iter_20.color = 'cyan'
-    #     pass
-    
-    # # TODO: Update if necessaray
-    # def txt_change(self,event):
-    #     print("txt_change:",str(event))
-    #     print("max:",str(self.img_name_list_length-self.img_index-1))
-    #     self.txt_change_event = event
-        
-    #     if event.isnumeric():
-    #         temp = int(event)
-    #         # print("temp:",temp)
-            
-    #         if temp < 1:
-    #             temp=1
-    #         if temp > (self.img_name_list_length-self.img_index-1):
-    #             temp = self.img_name_list_length-self.img_index-1
-    #         # print("temp:",temp)
-    #         self.but_iter_x_value = temp
-    #     self.text_box_iter.set_val(str(self.but_iter_x_value))
-        
-    #     self.but_iter_x.label.set_text( "Iter({})".format(str(self.but_iter_x_value)) )
-    #     self.fig.canvas.draw()
-    #     # print("done txt box")
-    #     pass
-    
-    # # TODO: Update if necessaray
-    # def on_click_iter_x(self,event):
-    #     print("on_click_iter_x:",str(self.but_iter_x_value))
-    #     self.iter_and_plot_update(self.but_iter_x_value)
-    #     pass
-    # # TODO: Update if necessaray
-    # def on_click_iter_10(self,event):
-    #     print("on_click_iter_10")
-    #     self.iter_and_plot_update(10)
-    #     pass
-    # # TODO: Update if necessaray
-    # def on_click_iter_20(self,event):
-    #     print("on_click_iter_20")
-    #     self.iter_and_plot_update(20)
-    #     pass
-    
-    
-    # # TODO: Update if necessaray
-    # def iter_and_plot_update(self, times = 1):
-    #     self.iterate(times)        
-    #     # plt.close('all')
-        
-    #     # fig,ax = plt.subplots( 2,2 )
-        
-        
-    #     row,col = 0,0
-    #     title = "({}) {}".format(self.img_index, self.img_name_list[self.img_index])
-    #     self.ax[row,col].imshow(cv2.cvtColor(self.img_set_mask_RGB, cv2.COLOR_BGR2RGB ) )
-    #     # self.ax[row,col].imshow(self.img_set_resize, cmap = 'gray',vmin=0, vmax=255) 
-    #     self.ax[row,col].title.set_text(title)
-        
-    #     row,col = 0,1
-    #     self.ax[row,col].imshow(self.img_set_mean, cmap = 'gray',vmin=0, vmax=255) 
-        
-    #     row,col = 1,0
-    #     self.ax[row,col].imshow(self.img_set_diff, cmap = 'gray',vmin=-255, vmax=255) 
-        
-    #     row,col = 1,1
-    #     self.ax[row,col].imshow(self.img_set_threshold, cmap = 'gray') 
-        
-    #     row,col = 2,0
-    #     self.ax[row,col].imshow(self.img_set_reduced, cmap = 'gray') 
-        
-    #     row,col = 2,1
-    #     self.ax[row,col].imshow(self.img_set_dilation, cmap = 'gray')
-        
-    #     plt.draw()
-    #     pass
-
 
 # %%
 
@@ -1442,60 +1175,28 @@ if __name__== "__main__":
     plt.close('all')
     time.sleep(0.1)
     
-    TEST = 2
+    TEST = 1
     # %%
     if TEST == 1:
-        cv2.destroyAllWindows()
-        plt.close('all')
-        
-        myPath = "D:\\ECM_PROJECT\\bee_images_small"
-        path_extr = "./extracted/"
-        
-        myIFC = IHM.ImageFinderClass(myPath,maxFiles=0,acceptedExtensionList=("png",))
-        myILC = IHM.ImageLoaderClass(myIFC, dim=(400,300),mask_rel=(0.1,0,1,1))
-        
-        myBGH = BackgroundImageClass(myILC,0,alpha_weight=0.1)
-        index=20
-        myBGH.reset(index-10,10)
-        myBGH.update_bg(index)
-        
-        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
-                                 open_close_kernel_size=8,
-                                 focus_dilate_kernel_size=20,
-                                 pixel_area_min=1000,
-                                 pixel_area_max=5000,
-                                 DEBUG=True)
-        #%%
-        plt.close('all')
-        index+=1
-        
-        myBGH.update_bg(index)
-        
-        myPar = ParentImageClass(myILC,myBGH,index=index+1,path_extr=path_extr,
-                                 open_close_kernel_size=8,
-                                 focus_dilate_kernel_size=20,
-                                 pixel_area_min=1000,
-                                 pixel_area_max=5000,
-                                 DEBUG=False)
-        pass
-    #%%
-    if TEST == 2:
         cv2.destroyAllWindows()
         plt.close('all')
         
         path_src = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "extracted"
         
-        myB = BeeExtractionHandler(path_extr)
-        myB.set_IFC_properties(path_src,0)
-        myB.set_ILC_properties(img_mask_rel=(0.1,0,1,1))
-        myB.set_BIC_properties()
+        myB = BeeExtractionHandler(path_extr, 
+                                   path_src, src_max_files=0,
+                                   img_mask_rel=(0.1,0,1,1), 
+                                   bg_alpha_weight=0.1)
+        # myB.set_BIC_properties()
         
         #%%
-        number = 14303
+        number = 300
         import datetime
         t1 = datetime.datetime.now()
+        
         myB.p_process(0,number)
+        
         t2 = datetime.datetime.now()
         dt = (t2-t1).total_seconds()
         speed = number/dt
