@@ -839,6 +839,25 @@ class FindEmptyClass:
         
         pass
     
+    def focus_label_assist(self):
+        fname_labels = "Labels"
+        dir_extracted = self._dir_extracted
+        self._df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
+        self._df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
+        
+        # Check if [comma] separated value files exists : otherwise exception
+        self.check_isfile(self._df_fname_labels_csv)
+        
+        # read csv file
+        self._df_labels = pd.read_csv(self._df_fname_labels_csv, index_col=0)
+        
+        df_empty = self._df_FE.where(self._df_FE["empty"] > 0)
+        df_empty.dropna(inplace=True)
+        
+        print("test")
+        
+        pass
+    
     def labeling(self):
         if len(self.list_candidates) > 0:
             self._new_fig_()
@@ -1055,7 +1074,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 3
+    TEST = 4
     
     # %%
     if TEST == 1:
@@ -1087,8 +1106,19 @@ if __name__== "__main__":
         df_EF = myFEC._df_FE
         myList = myFEC.list_candidates
         
-        myFEC.labeling()
+        # myFEC.labeling()
+        myFEC.analyze()
         pass
+    
+    # %%
+    if TEST==4:
+        plt.close('all')
+        # path_src = "D:\\ECM_PROJECT\\bee_images_small"
+        path_extr = "extracted"
+        
+        myFEC = FindEmptyClass(path_extr,sort_list=None, over_write=False)
+        
+        myFEC.focus_label_assist()
     
     
     
