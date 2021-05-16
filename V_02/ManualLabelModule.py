@@ -884,6 +884,19 @@ class FindEmptyClass:
         self.df_FE_fetch_next()
         pass
     
+    def df_FE_drop_last(self,num:int):
+        # will drop the last num rows
+        self._df_FE.drop(self._df_FE.tail(num).index,inplace=True)
+        print("Dropped the last {} rows. Restarting...".format(num))
+        
+        # restart
+        self.df_store()
+        self.df_startup(False)
+        
+        # fetch next idx
+        self.df_FE_fetch_next()
+        pass
+    
     def df_store(self):
         self._storing_counter = 0
         
@@ -950,11 +963,13 @@ class FindEmptyClass:
     
     def on_key(self,event):
         self.keypressed = event.key
-        # print('you pressed', event.key)
         
         if event.key == "escape":
             print('you pressed', event.key)
             self.df_store()
+        elif event.key == "delete":
+            print('you pressed', event.key)
+            self.df_FE_drop_last(5)
         elif event.key in ["0"]:
             print('you pressed', event.key)
             self.df_FE_set_empty(1)
@@ -962,6 +977,7 @@ class FindEmptyClass:
         elif event.key in ["1","2","3","4","5","6","7","8","9",","]:
             print('you pressed', event.key)
             self.df_FE_set_empty(0)
+        
         pass
     
     def update_fig(self):
