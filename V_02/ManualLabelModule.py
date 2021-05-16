@@ -160,18 +160,24 @@ class ManualLabelHelper:
         index1 = df['has_bee'].index[df['has_bee'].apply(np.isnan)]
         index2 = df['img_sharp'].index[df['img_sharp'].apply(np.isnan)]
         
-        self._set_unlabeled_rowIndex = set(index1) | set(index2)
+        self._set_unlabeled_rowIndex = set(index1) & set(index2)
+        self._set_unlabeled_rowIndex_partly = set(index1) ^ set(index2)
         
-        ul = len(self._set_unlabeled_rowIndex)
+        ul = len(self._set_unlabeled_rowIndex) + len(self._set_unlabeled_rowIndex_partly)
         print("Unlabled imgs: {} -> {}".format(ul, self._df_size-ul))
         pass
     
     def df_get_rndm_idx_from_setUnlabeled_rowIndex(self):
         """Get a random rowIndex from the set of unlabled_rowIndex."""
-        return random.choice(tuple(self._set_unlabeled_rowIndex))
+        # return partly labeled items first
+        if len(self._set_unlabeled_rowIndex_partly)>0:
+            return random.choice(tuple(self._set_unlabeled_rowIndex_partly))
+        else:
+            return random.choice(tuple(self._set_unlabeled_rowIndex))
     def df_delete_idx_from_setUnlabeled_rowIndex(self,idx):
         """Removes the specified rowIndex from the set of unlabled_rowIndex."""
         self._set_unlabeled_rowIndex.discard(idx)
+        self._set_unlabeled_rowIndex_partly.discard(idx)
         pass
     
     # -------------------------------------------------------------------------
@@ -686,18 +692,74 @@ class ManualLabelHelper:
         pass
 
 # %% 
+class LabelInspectorClass:
+    def __init__(self, dir_extraction = "extracted"):
+        
+        
+        pass
 
+    # -------------------------------------------------------------------------
+    def check_isdir(self,path):
+        """Stop object creation, if no valid directory path is given. Returns the absolute path."""
+        if (os.path.isdir(path) == False):
+            raise Exception("Requires a legal directory path!")
+        return os.path.abspath(path)
+    def check_isfile(self,path):
+        """Stop object creation, if no valid file path is given. Returns the absolute path."""
+        if (os.path.isfile(path) == False):
+            raise Exception("Requires a legal file path!")
+        return os.path.abspath(path)
+    
+    def set_dir_extracted(self,path):
+        """Sets the dir path to the extraction folder. 
+        
+        All other files are assumed to be relative to this folder, unless an abs_path is specified."""
+        self._dir_extracted = self.check_isdir(path)
+        pass
 
 # %% 
 
 
 # %% 
-myHLH = ManualLabelHelper()
-my_df = myHLH._df_labels
 
-# myHLH._new_fig_()
-# myHLH.update_fig()
-# myHLH.fig.show()
 
-# b = myHLH.widget_checkbox
-# a = myHLH._a
+# %% 
+
+if __name__== "__main__":
+    print("## Calling main function.)\n")
+    
+    print("cv2.version = {}".format(cv2.__version__))
+    print("numpy.version = {}".format(np.__version__))
+    print("matplotlib.version = {}".format(mpl.__version__))
+    print("pandas.version = {}".format(pd.__version__))
+    
+    
+    # Window Cleanup
+    cv2.destroyAllWindows()
+    plt.close('all')
+    
+    TEST = 2
+    
+    # %%
+    if TEST == 1:
+        cv2.destroyAllWindows()
+        plt.close('all')
+        print("start labeling unlabeled focus imgs...")
+
+        myHLH = ManualLabelHelper()
+        my_df = myHLH._df_labels
+        pass
+
+    # %%
+    if TEST == 2:
+        
+        pass
+    
+    
+    
+    
+    
+    
+    
+    
+    
