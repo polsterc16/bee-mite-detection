@@ -786,14 +786,15 @@ class LabelInspectorClass:
 # %% 
         
 class FindEmptyClass:
-    def __init__(self, dir_extraction, over_write=False):
+    def __init__(self, dir_extraction, sort_list=["contours_raw","contours_valid"], over_write=False):
         self._storing_counter = 0
+        self._sort_list=sort_list
         
         self.set_dir_extracted(dir_extraction)
         self.df_startup(over_write)
         
-        self._new_fig_()
-        self.df_FE_fetch_next()
+        # self._new_fig_()
+        # self.df_FE_fetch_next()
         pass
     # -------------------------------------------------------------------------
     def check_isdir(self,path):
@@ -811,6 +812,40 @@ class FindEmptyClass:
         self._dir_extracted = self.check_isdir(path)
         pass
     
+    def analyze(self):
+        plt.close("all")
+        df = self._df_FE
+        
+        df_empty = df.where(df["empty"] > 0)
+        df_empty.dropna(inplace=True)
+        df_popul =  df.where(df["empty"] <= 0)
+        df_popul.dropna(inplace=True)
+        
+        wedge_sizes = [len(df_popul), len(df_empty), len(self.list_candidates)]
+        labels = ["populated","empty","unknown"]
+        colors = ["dodgerblue", "gold", "gray"]
+        
+        # plt.close('all')
+        
+        # make new figure
+        self.fig_pie, self.ax_pie = plt.subplots()
+        
+        self.ax_pie.pie(wedge_sizes, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
+        txt = "Population in Source images ({})\nPopulated: {}, Empty: {}, Unknown: {}".format(len(df),wedge_sizes[0],wedge_sizes[1],wedge_sizes[2])
+        self.ax_pie.set_title(txt)
+        
+        self.fig_pie.tight_layout()
+        self.fig_pie.show()
+        
+        pass
+    
+    def labeling(self):
+        if len(self.list_candidates) > 0:
+            self._new_fig_()
+            self.df_FE_fetch_next()
+        else:
+            print("No more unlabeled")
+        pass
     
     def df_startup(self,over_write):
         fname_parent = "Parent"
@@ -824,7 +859,11 @@ class FindEmptyClass:
         # check if the [comma] separated value file exists
         self.check_isfile(self._df_fname_parent_csv) # parent file MUST exist!
         self._df_parent = pd.read_csv(self._df_fname_parent_csv, index_col=0)
-        self._df_parent.sort_values(["contours_raw", "contours_valid"], inplace=True)
+        if type(self._sort_list) in [list,tuple]:
+            self._df_parent.sort_values(self._sort_list, inplace=True)
+            print("Sorted by: {}".format(self._sort_list))
+        else:
+            print("No additional Sorting.")
         
         
         # We will load from the [comma] separated value files
@@ -854,6 +893,8 @@ class FindEmptyClass:
         if len(self.list_candidates) > 0:
             self._rowIdx = self.list_candidates[0]
         else:
+            self.df_store()
+            self.fig.close()
             raise Exception("'self.list_candidates' is empty!")
         
         self._row_parent = self._df_parent.loc[self._rowIdx]
@@ -1041,10 +1082,12 @@ if __name__== "__main__":
         # path_src = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "extracted"
         
-        myFEC = FindEmptyClass(path_extr, False)
+        myFEC = FindEmptyClass(path_extr,sort_list=None, over_write=False)
         df_parent = myFEC._df_parent
         df_EF = myFEC._df_FE
         myList = myFEC.list_candidates
+        
+        myFEC.labeling()
         pass
     
     
