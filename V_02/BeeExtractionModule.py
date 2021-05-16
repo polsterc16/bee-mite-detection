@@ -1058,15 +1058,16 @@ if __name__== "__main__":
         # myB.set_BIC_properties()
         
         #%%
-        number = 100
+        number = 14500
         import datetime
         t1 = datetime.datetime.now()
         
-        myB.p_process(75,number)
+        myB.p_process(0,number)
         
         t2 = datetime.datetime.now()
         dt = (t2-t1).total_seconds()
         speed = number/dt
+        print("time taken: {}".format(t2-t1))
         
         pass
     
