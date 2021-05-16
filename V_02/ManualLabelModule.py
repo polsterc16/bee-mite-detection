@@ -16,6 +16,7 @@ import pandas as pd
 import os
 import random
 
+from tqdm import tqdm
 from ast import literal_eval
 
 # import ImageHandlerModule as IHM
@@ -840,22 +841,61 @@ class FindEmptyClass:
         pass
     
     def focus_label_assist(self):
+        print("This will set the focus images of empty src images to contain no bees and being sharp!")
         fname_labels = "Labels"
         dir_extracted = self._dir_extracted
-        self._df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
-        self._df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
+        df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
+        df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
         
         # Check if [comma] separated value files exists : otherwise exception
-        self.check_isfile(self._df_fname_labels_csv)
+        self.check_isfile(df_fname_labels_csv)
         
         # read csv file
-        self._df_labels = pd.read_csv(self._df_fname_labels_csv, index_col=0)
+        df_labels = pd.read_csv(df_fname_labels_csv, index_col=0)
+        
+        # save a backup version of the labels
+        df_fname_labels_backup_csv =  os.path.join(dir_extracted, "{}_backup_csv.csv".format(fname_labels))
+        df_fname_labels_backup_scsv = os.path.join(dir_extracted, "{}_backup_scsv.csv".format(fname_labels))
+        df_labels.to_csv(df_fname_labels_backup_csv,  sep=",")
+        df_labels.to_csv(df_fname_labels_backup_scsv, sep=";")
         
         df_empty = self._df_FE.where(self._df_FE["empty"] > 0)
         df_empty.dropna(inplace=True)
         
-        print("test")
+        match_counter = 0
+        focus_counter = 0
+        # go through all rows of the empty df
+        for i in tqdm(range( len(df_empty) ), desc="Help with empty images"):
+            row_empty = df_empty.iloc[i]
+            
+            # find all matching rows in Label df for the index of an empty image
+            df_label_match = df_labels.loc[df_labels["parent_fname"] == row_empty["src_fname"]]
+            
+            # df_label_match = df_labels.loc[df_labels["parent_fname"] == "20200803_052936_image0005_0_s.png"]
+            
+            matchFlag=0
+            # go through all Indexes that matched and set their bee pos as empty
+            for idx in df_label_match.index.to_list():
+                matchFlag += 1
+                # print(idx)
+                df_labels.at[idx, "has_bee"] = 0
+                df_labels.at[idx, "img_sharp"] = 1
+                df_labels.at[idx, "rel_pos_abdomen"] = str(None)
+                pass
+            match_counter += (matchFlag>0)
+            focus_counter += matchFlag
+            pass #-------------------------------------------------------------
+        print("{} empty src images had {} focus images.".format(match_counter, focus_counter))
         
+        # write to a DIFFERENT output file
+        # fname_labels = "Labels_helped"
+        # df_fname_labels_csv =  os.path.join(dir_extracted, "{}_csv.csv".format(fname_labels))
+        # df_fname_labels_scsv = os.path.join(dir_extracted, "{}_scsv.csv".format(fname_labels))
+        
+        df_labels.to_csv(df_fname_labels_csv,  sep=",")
+        df_labels.to_csv(df_fname_labels_scsv, sep=";")
+        
+        print("Stored {}".format(df_fname_labels_csv))
         pass
     
     def labeling(self):
@@ -1074,7 +1114,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 4
+    TEST = 1
     
     # %%
     if TEST == 1:
