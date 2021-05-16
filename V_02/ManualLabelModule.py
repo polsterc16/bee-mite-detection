@@ -787,8 +787,13 @@ class LabelInspectorClass:
         
 class FindEmptyClass:
     def __init__(self, dir_extraction, over_write=False):
+        self._storing_counter = 0
+        
         self.set_dir_extracted(dir_extraction)
         self.df_startup(over_write)
+        
+        self._new_fig_()
+        self.df_FE_fetch_next()
         pass
     # -------------------------------------------------------------------------
     def check_isdir(self,path):
@@ -813,8 +818,8 @@ class FindEmptyClass:
         
         path_dir = self._dir_extracted
         self._df_fname_parent_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_parent))
-        self._df_fname_FE_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_parent))
-        self._df_fname_FE_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_parent))
+        self._df_fname_FE_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_FE))
+        self._df_fname_FE_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_FE))
         
         # check if the [comma] separated value file exists
         self.check_isfile(self._df_fname_parent_csv) # parent file MUST exist!
@@ -845,13 +850,132 @@ class FindEmptyClass:
         self.list_candidates = [x for x in list_candidates if x not in list_empty]
         pass
     
-    def df_check(self):
+    def df_FE_fetch_next(self):
+        if len(self.list_candidates) > 0:
+            self._rowIdx = self.list_candidates[0]
+        else:
+            raise Exception("'self.list_candidates' is empty!")
+        
+        self._row_parent = self._df_parent.loc[self._rowIdx]
+        print(self._rowIdx)
+        # print(self._row_parent["src_fpath"])
+        # print(self._row_parent["roi_fpath"])
+        
+        self.update_fig()
+        pass
+    
+    def df_FE_set_empty(self,emptyFlag:int):
+        # write result into FE dataframe
+        data_slice = {"src_fname":       self._row_parent["src_fname"],
+                      "src_fpath":       self._row_parent["src_fpath"],
+                      "roi_fpath":       self._row_parent["roi_fpath"],
+                      "contours_raw":    self._row_parent["contours_raw"],
+                      "contours_valid":  self._row_parent["contours_valid"],
+                      "empty":           emptyFlag}
+        self._df_FE.at[self._rowIdx] = pd.Series(data_slice)
+        
+        # remove idx from candidate list
+        self.list_candidates.remove(self._rowIdx)
+        
+        self._storing_counter += 1 # inc counter
+        if (self._storing_counter >= 10): self.df_store()
+        
+        # fetch next idx
+        self.df_FE_fetch_next()
         pass
     
     def df_store(self):
+        self._storing_counter = 0
         
         self._df_FE.to_csv(self._df_fname_FE_csv,  sep=",")
         self._df_FE.to_csv(self._df_fname_FE_scsv, sep=";")
+        
+        print("Stored {}".format(self._df_fname_FE_csv))
+        pass
+    
+    
+    # FIGURE functions
+    def _new_fig_(self):
+        
+        # make new figure
+        self.fig = plt.figure()
+        
+        
+        self.widget_figtext_Title = \
+            plt.figtext(0.5, 0.99, "[0]: Set to Empty,   [,],[1-9]: Set to Populated", 
+                        va ="top", ha ="center", wrap = True, fontsize = 10) 
+            
+        # axes on top to show the ROI image
+        self.ax_roi = plt.axes([0, 0*0.48, 1, 0.48]) #[left,bottom,width,height]
+        self.ax_roi.axis("off")
+        # self.ax_roi.title.set_text("")
+        
+        # axes on bottom left to show the focus image
+        self.ax_orig = plt.axes([0, 1*0.48, 1, 0.48]) #[left,bottom,width,height]
+        self.ax_orig.axis("off")
+        # self.ax_orig.title.set_text("")
+        
+        
+        thismanager = plt.get_current_fig_manager()
+        thismanager.resize(400,630)
+        # thismanager.window.setGeometry(self.posX, self.posY, self.w, self.h)
+        
+        
+        
+        # save to csv on figure closing
+        self.fig.canvas.mpl_connect('close_event', self.on_close)
+        
+        # add key event handler
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        self.fig.canvas.draw()
+        pass
+    
+    def update_fig(self):
+        self.ax_roi.clear()
+        self.ax_roi.axis("off")
+        self.ax_roi.imread(self._row_parent.roi_fpath)
+        
+        self.ax_orig.clear()
+        self.ax_orig.axis("off")
+        self.ax_orig.imread(self._row_parent.src_fpath)
+        
+        self.fig.canvas.draw()  # update the display manually
+        pass
+    
+    def on_close(self,event):
+        # save to csv on figure closing
+        self.df_store()
+        print("Figure closed.")
+        pass
+    
+    def on_key(self,event):
+        self.keypressed = event.key
+        # print('you pressed', event.key)
+        
+        if event.key == "escape":
+            print('you pressed', event.key)
+            self.df_store()
+        elif event.key in ["0"]:
+            print('you pressed', event.key)
+            self.df_FE_set_empty(1)
+            
+        elif event.key in ["1","2","3","4","5","6","7","8","9",","]:
+            print('you pressed', event.key)
+            self.df_FE_set_empty(0)
+        pass
+    
+    def update_fig(self):
+        img_roi =  cv2.cvtColor( cv2.imread(self._row_parent.roi_fpath), cv2.COLOR_BGR2RGB)
+        img_orig = cv2.cvtColor( cv2.imread(self._row_parent.src_fpath), cv2.COLOR_BGR2RGB)
+        self.ax_roi.clear()
+        self.ax_roi.axis("off")
+        self.ax_roi.imshow(img_roi)
+        
+        self.ax_orig.clear()
+        self.ax_orig.axis("off")
+        self.ax_orig.imshow(img_orig)
+        
+        self.fig.canvas.draw()  # update the display manually
         pass
 
 
@@ -897,11 +1021,14 @@ if __name__== "__main__":
 
     # %%
     if TEST == 3:
+        plt.close('all')
         # path_src = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "extracted"
         
-        myFEC = FindEmptyClass(path_extr)
-        df = myFEC._df_parent
+        myFEC = FindEmptyClass(path_extr, False)
+        df_parent = myFEC._df_parent
+        df_EF = myFEC._df_FE
+        myList = myFEC.list_candidates
         pass
     
     
