@@ -786,8 +786,72 @@ class LabelInspectorClass:
 # %% 
         
 class FindEmptyClass:
-    def __init__(self):
+    def __init__(self, dir_extraction, over_write=False):
+        self.set_dir_extracted(dir_extraction)
+        self.df_startup(over_write)
+        pass
+    # -------------------------------------------------------------------------
+    def check_isdir(self,path):
+        """Stop object creation, if no valid directory path is given. Returns the absolute path."""
+        if (os.path.isdir(path) == False):
+            raise Exception("Requires a legal directory path!")
+        return os.path.abspath(path)
+    def check_isfile(self,path):
+        """Stop object creation, if no valid file path is given. Returns the absolute path."""
+        if (os.path.isfile(path) == False):
+            raise Exception("Requires a legal file path!")
+        return os.path.abspath(path)
+    
+    def set_dir_extracted(self,path):
+        self._dir_extracted = self.check_isdir(path)
+        pass
+    
+    
+    def df_startup(self,over_write):
+        fname_parent = "Parent"
+        fname_FE = "Find_Empty"
         
+        path_dir = self._dir_extracted
+        self._df_fname_parent_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_parent))
+        self._df_fname_FE_csv =  os.path.join(path_dir, "{}_csv.csv".format(fname_parent))
+        self._df_fname_FE_scsv = os.path.join(path_dir, "{}_scsv.csv".format(fname_parent))
+        
+        # check if the [comma] separated value file exists
+        self.check_isfile(self._df_fname_parent_csv) # parent file MUST exist!
+        self._df_parent = pd.read_csv(self._df_fname_parent_csv, index_col=0)
+        self._df_parent.sort_values(["contours_raw", "contours_valid"], inplace=True)
+        
+        
+        # We will load from the [comma] separated value files
+        f_FE_exists =  os.path.isfile(self._df_fname_FE_csv)
+        
+        if f_FE_exists and not over_write:
+            self._df_FE = pd.read_csv(self._df_fname_FE_csv, index_col=0)
+        else:
+            cols_FE =  ["src_fname",
+                        "src_fpath",
+                        "roi_fpath",
+                        "contours_raw",
+                        "contours_valid",
+                        "empty"]
+            self._df_FE = pd.DataFrame(columns=cols_FE)
+            pass
+        
+        
+        list_candidates = self._df_parent.index.values.tolist()
+        list_empty = self._df_FE.index.values.tolist()
+        
+        # get a list of all not yet check imgs
+        self.list_candidates = [x for x in list_candidates if x not in list_empty]
+        pass
+    
+    def df_check(self):
+        pass
+    
+    def df_store(self):
+        
+        self._df_FE.to_csv(self._df_fname_FE_csv,  sep=",")
+        self._df_FE.to_csv(self._df_fname_FE_scsv, sep=";")
         pass
 
 
@@ -833,6 +897,12 @@ if __name__== "__main__":
 
     # %%
     if TEST == 3:
+        # path_src = "D:\\ECM_PROJECT\\bee_images_small"
+        path_extr = "extracted"
+        
+        myFEC = FindEmptyClass(path_extr)
+        df = myFEC._df_parent
+        pass
     
     
     
