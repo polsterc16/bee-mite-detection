@@ -782,23 +782,13 @@ class LabelInspectorClass:
         self.fig.show()
         pass
     
-    def df_generate_setUnlabeled(self):
-        """Will search through 'has_bee' and 'img_sharp' columns for empty cells 
-        and generate a set from this."""
-        # df = self._df_labels
-        
-        # # check both 'has_bee' and 'img_sharp' columns for empty cells
-        # index1 = df['has_bee'].index[df['has_bee'].apply(np.isnan)]
-        # index2 = df['img_sharp'].index[df['img_sharp'].apply(np.isnan)]
-        
-        # self._set_unlabeled_rowIndex = set(index1) & set(index2)
-        # self._set_unlabeled_rowIndex_partly = set(index1) ^ set(index2)
-        
-        # ul = len(self._set_unlabeled_rowIndex) + len(self._set_unlabeled_rowIndex_partly)
-        # print("Unlabled imgs: {} -> {}".format(ul, self._df_size-ul))
-        pass
 
 # %% 
+        
+class FindEmptyClass:
+    def __init__(self):
+        
+        pass
 
 
 # %% 
@@ -820,7 +810,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 2
+    TEST = 3
     
     # %%
     if TEST == 1:
@@ -835,11 +825,14 @@ if __name__== "__main__":
     # %%
     if TEST == 2:
         myLIC = LabelInspectorClass()
-        my_df = myLIC._df_labels
-        df_beeY = myLIC.df_beeYes
-        df_beeN = myLIC.df_beeNo
+        # my_df = myLIC._df_labels
+        # df_beeY = myLIC.df_beeYes
+        # df_beeN = myLIC.df_beeNo
         
         pass
+
+    # %%
+    if TEST == 3:
     
     
     
