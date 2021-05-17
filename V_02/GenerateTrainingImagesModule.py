@@ -3,6 +3,11 @@
 Created on Mon May 17 14:22:43 2021
 
 @author: Admin
+
+Purpose: 
+    1) Generate bee images WITH the mite image place at the badomen position
+    2) Generate additional empty focus images
+
 """
 
 import cv2
