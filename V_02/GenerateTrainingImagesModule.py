@@ -113,7 +113,7 @@ class GenerateLearningImagesClass:
         self._df_labels = self._df_labels[["fname", "fpath", 
                           "parent_fname", "parent_fpath", "roi_fpath",
                           "pos_center", "pos_anchor",
-                          "has_bee", "rel_pos_abdomen"]]
+                          "has_bee", "img_sharp", "rel_pos_abdomen"]]
         
         # read the Find EMpty csv
         self._df_FE = pd.read_csv(self._df_fname_FE_csv, index_col=0)
@@ -125,7 +125,7 @@ class GenerateLearningImagesClass:
         cols_learning =  ["fname", "fpath", 
                           "src_fname", "src_fpath", "roi_fpath",
                           "pos_center", "pos_anchor",
-                          "has_bee", "has_mite"]
+                          "has_bee", "has_mite", "weight"]
         self._df_learning = pd.DataFrame(columns=cols_learning)
          
          
@@ -181,6 +181,11 @@ class GenerateLearningImagesClass:
                        desc="Write bee/mites to df learning" ):
             row = self._df_isBee_prepared.iloc[i]
             
+            if row["img_sharp"] > 0:
+                weight = 1.0
+            else:
+                weight = 0.5
+            
             #["fname", "fpath", "src_fname", "src_fpath", "roi_fpath", 
             # "pos_center", "pos_anchor", "has_bee", "has_mite"]
             data_slice = {"fname": row["fname"],
@@ -191,7 +196,8 @@ class GenerateLearningImagesClass:
                           "pos_center": row["pos_center"],
                           "pos_anchor": row["pos_anchor"],
                           "has_bee":    row["has_bee"],
-                          "has_mite":   row["has_mite"]}
+                          "has_mite":   row["has_mite"],
+                          "weight":     weight}
             
             self._df_learning.at[row["fname"]] = pd.Series(data_slice)
             #----------------------
@@ -205,17 +211,23 @@ class GenerateLearningImagesClass:
                        desc="Write empty to df learning" ):
             row = self._df_isEmpty.iloc[i]
             
+            if row["img_sharp"] > 0:
+                weight = 1.0
+            else:
+                weight = 0.5
+            
             #["fname", "fpath", "src_fname", "src_fpath", "roi_fpath", 
             # "pos_center", "pos_anchor", "has_bee", "has_mite"]
-            data_slice = {"fname": row["fname"],
-                          "fpath": row["fpath"],
-                          "src_fname": row["parent_fname"],
-                          "src_fpath": row["parent_fpath"],
-                          "roi_fpath": row["roi_fpath"],
+            data_slice = {"fname":      row["fname"],
+                          "fpath":      row["fpath"],
+                          "src_fname":  row["parent_fname"],
+                          "src_fpath":  row["parent_fpath"],
+                          "roi_fpath":  row["roi_fpath"],
                           "pos_center": row["pos_center"],
                           "pos_anchor": row["pos_anchor"],
-                          "has_bee": 0,
-                          "has_mite": 0}
+                          "has_bee":    0,
+                          "has_mite":   0,
+                          "weight":     weight}
             
             self._df_learning.at[row["fname"]] = pd.Series(data_slice)
             pass #----------------------
@@ -231,8 +243,7 @@ class GenerateLearningImagesClass:
     def _generate_mites(self):
         mite_scale = 0.5 # by how much we ant to scale down the mite imgs (they are too big)
         # get local copy of df
-        df_bees = self._df_isBee[["fname","fpath","parent_fname","parent_fpath","roi_fpath",
-                                  "pos_center","pos_anchor","has_bee"]].copy()
+        df_bees = self._df_isBee.copy()
         df_bees["has_mite"] = 0 #add "has_mite" col with default assignment
         # delete rows via < df.drop(index_label, inplace=true) >
         
@@ -340,6 +351,7 @@ class GenerateLearningImagesClass:
             # cv2.imshow("mite places",img_focus)
             cv2.imwrite(fpath, img_focus)
             
+            
             # prepare the seried to be added to the empty df
             data_slice = {"fname": fname, 
                           "fpath": fpath, 
@@ -348,8 +360,9 @@ class GenerateLearningImagesClass:
                           "roi_fpath":  row["roi_fpath"],
                           "pos_center": row["pos_center"], 
                           "pos_anchor": row["pos_anchor"],
-                          "has_bee": 1, 
-                          "has_mite": 1}
+                          "has_bee":    1, 
+                          "img_sharp":  row["img_sharp"], 
+                          "has_mite":   1}
             # write data slice to df
             df_bees.at[fname] = pd.Series(data_slice)
             # print(pos_FE)
@@ -392,7 +405,6 @@ class GenerateLearningImagesClass:
             c_row = random.randrange(0, range_row )
             c_col = random.randrange(0, range_col )
             pos_anchor = (c_col, c_row)
-            pos_center = (c_col + int(shape_focus[1]/2), c_row + int(shape_focus[0]/2))
             
             # get our focus region & write to fpath
             img_focus = img[c_row:c_row+shape_focus[0], c_col:c_col+shape_focus[1]]
@@ -403,10 +415,11 @@ class GenerateLearningImagesClass:
                           "fpath": fpath, 
                           "parent_fname": src_fname, 
                           "parent_fpath": src_fpath, 
-                          "roi_fpath": str(None),
-                          "pos_center": str(pos_center), 
+                          "roi_fpath":  str(None),
+                          "pos_center": str(pos_anchor), 
                           "pos_anchor": str(pos_anchor),
-                          "has_bee": 0, 
+                          "has_bee":    0, 
+                          "img_sharp":  1, 
                           "rel_pos_abdomen": str(None)}
             # write data slice to df
             self._df_isEmpty.at[fname] = pd.Series(data_slice)
