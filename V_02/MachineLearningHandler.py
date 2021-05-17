@@ -135,7 +135,7 @@ class ImportFromExtraction:
         
         x_data = np.zeros( (len(df), dim[0],dim[1]), dtype=np.uint8 )
         y_data = np.zeros( (len(df), 2), dtype=np.uint8 )
-        w_data = np.zeros( (len(df),1), dtype=np.float16 )
+        w_data = np.zeros( len(df), dtype=np.float16 )
         
         # got thorugh all elements of source csv, load the images to grayscale and store them in the target img location
         for i in tqdm( range( len(df) ), desc="Processing Images"):
@@ -237,7 +237,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 4
+    TEST = 5
     
     # %%
     if TEST == 1:
@@ -288,13 +288,32 @@ if __name__== "__main__":
     
     # %%
     # https://studymachinelearning.com/keras-imagedatagenerator/
-    #https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+    # https://rubikscode.net/2019/12/09/creating-custom-tensorflow-dataset/
+    # https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+    # https://godatadriven.com/blog/keras-multi-label-classification-with-imagedatagenerator/
     
     if TEST == 5:
         from keras.preprocessing.image import ImageDataGenerator
-        path_imgs = "learning/imgs"
+        from sklearn.model_selection import train_test_split
         
-        x_d, y_d = pickle.load( open( path_imgs, "rb" ) )
+        path_imgs = "learning/imgs"
+        path_pickle = "learning/imgs.p"
+        
+        # x_d, y_d, w_d = pickle.load( open( path_pickle, "rb" ) )
+        
+        df = pd.read_csv("learning/data__csv.csv", index_col=0)
+        df["labels"]=""
+        for i in tqdm( range(len(df)), desc="going through df"):
+            row = df.iloc[i]
+            bee = row["has_bee"]
+            mite = row["has_mite"]
+            if bee>0 and mite>0:
+                label=["bee","mite"]
+            elif bee>0:
+                label=["bee"]
+            else:
+                label=[]
+            df.at[i,"labels"]=label
         
         image_generator = ImageDataGenerator(
                         rotation_range=10,
@@ -304,6 +323,17 @@ if __name__== "__main__":
                         horizontal_flip=True,
                         vertical_flip=True,
                         rescale=1./255)
+        
+        img_iter = ImageDataGenerator().flow_from_dataframe(
+            df,
+            x_col='fpath',
+            y_col='labels',
+            class_mode='categorical'
+        )
+        
+        # my_flow = image_generator.flow(x_d, y_d, sample_weight=w_d, seed=42, 
+        #                                save_to_dir="learning/output", 
+        #                                save_prefix="img_gen_")
         
         # dataset = image_generator.flow_from_directory(directory=str(path_imgs),
     
