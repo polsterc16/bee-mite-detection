@@ -133,7 +133,7 @@ class ImportFromExtraction:
         img = cv2.imread(fpath)
         dim = img.shape[0:2]
         
-        x_data = np.zeros( (len(df), dim[0],dim[1]), dtype=np.uint8 )
+        x_data = np.zeros( (len(df), dim[0],dim[1],1), dtype=np.uint8 )
         y_data = np.zeros( (len(df), 2), dtype=np.uint8 )
         w_data = np.zeros( len(df), dtype=np.float16 )
         
@@ -145,7 +145,8 @@ class ImportFromExtraction:
             
             img = cv2.imread(row["fpath"], cv2.IMREAD_GRAYSCALE)    # read img as grayscale
             cv2.imwrite(fpath, img)     # store img to target destination
-            x_data[i] = img
+            img_rank4 = np.reshape(img, (128,128,1) )
+            x_data[i] = img_rank4
             y_data[i] = [int(row["has_bee"]), int(row["has_mite"])]
             w_data[i] = row["weight"]
             
@@ -299,7 +300,6 @@ if __name__== "__main__":
         path_imgs = "learning/imgs"
         path_pickle = "learning/imgs.p"
         
-        # x_d, y_d, w_d = pickle.load( open( path_pickle, "rb" ) )
         
         df = pd.read_csv("learning/data__csv.csv", index_col=0)
         df["labels"]=""
@@ -324,7 +324,7 @@ if __name__== "__main__":
                         vertical_flip=True,
                         rescale=1./255)
         
-        img_iter = ImageDataGenerator().flow_from_dataframe(
+        img_iter = image_generator.flow_from_dataframe(
             df,
             x_col='fpath',
             y_col='labels',
@@ -334,11 +334,17 @@ if __name__== "__main__":
             save_prefix="img_gen_"
         )
         
-        img_iter.next()
+        temp=img_iter.next()
+        imgs=temp[0]
+        img=imgs[0]
         
-        # my_flow = image_generator.flow(x_d, y_d, sample_weight=w_d, seed=42, 
-        #                                save_to_dir="learning/output", 
-        #                                save_prefix="img_gen_")
+        #%%
+        
+        x_d, y_d, w_d = pickle.load( open( path_pickle, "rb" ) )
+        
+        my_flow = image_generator.flow(x_d, y_d, sample_weight=w_d, seed=42, 
+                                        save_to_dir="learning/output", 
+                                        save_prefix="img_gen_")
         
         # dataset = image_generator.flow_from_directory(directory=str(path_imgs),
     
