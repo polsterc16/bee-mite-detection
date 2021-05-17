@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import pandas as pd
 import os
+import pickle
+import seaborn as sns
 
 from tqdm import tqdm
 
@@ -85,7 +87,14 @@ class ImportFromExtraction:
         print("Stored {}".format(self._df_fname_data_csv))
         pass
     
-    def process(self):
+    def process(self, make_pickle=False):
+        if make_pickle:
+            self._process_pickle()
+        else:
+            self._process()
+        pass
+    
+    def _process(self):
         df = self._df_source
         # got thorugh all elements of source csv, load the images to grayscale and store them in the target img location
         i = 0
@@ -104,7 +113,8 @@ class ImportFromExtraction:
                           "pos_center": row["pos_center"],
                           "pos_anchor": row["pos_anchor"],
                           "has_bee":    row["has_bee"],
-                          "has_mite":   row["has_mite"]}
+                          "has_mite":   row["has_mite"],
+                          "weight":     row["weight"]}
             
             self._df_data.at[i] = pd.Series(data_slice)
             
@@ -112,6 +122,52 @@ class ImportFromExtraction:
             pass
         
         
+        self.df_store()
+        pass
+    
+    def _process_pickle(self):
+        df = self._df_source
+        
+        row = df.iloc[0]
+        fpath = row["fpath"]
+        img = cv2.imread(fpath)
+        dim = img.shape[0:2]
+        
+        x_data = np.zeros( (len(df), dim[0],dim[1]), dtype=np.uint8 )
+        y_data = np.zeros( (len(df), 2), dtype=np.uint8 )
+        w_data = np.zeros( (len(df),1), dtype=np.float16 )
+        
+        # got thorugh all elements of source csv, load the images to grayscale and store them in the target img location
+        for i in tqdm( range( len(df) ), desc="Processing Images"):
+            row = df.iloc[i]
+            fname = "{:05}_{}{}.png".format(i, int(row["has_bee"]), int(row["has_mite"]) )
+            fpath = os.path.join(self._dir_learning_imgs, fname)
+            
+            img = cv2.imread(row["fpath"], cv2.IMREAD_GRAYSCALE)    # read img as grayscale
+            cv2.imwrite(fpath, img)     # store img to target destination
+            x_data[i] = img
+            y_data[i] = [int(row["has_bee"]), int(row["has_mite"])]
+            w_data[i] = row["weight"]
+            
+            data_slice = {"fname": fname,
+                          "fpath": fpath,
+                          "src_fname":  row["src_fname"],
+                          "src_fpath":  row["src_fpath"],
+                          "roi_fpath":  row["roi_fpath"],
+                          "pos_center": row["pos_center"],
+                          "pos_anchor": row["pos_anchor"],
+                          "has_bee":    row["has_bee"],
+                          "has_mite":   row["has_mite"],
+                          "weight":     row["weight"]}
+            
+            self._df_data.at[i] = pd.Series(data_slice)
+            
+            i += 1
+            pass
+        
+        p_name = "imgs.p"
+        path = os.path.join(self._dir_learning, p_name)
+        pickle.dump( (x_data, y_data, w_data), open( path, "wb" ) )
         self.df_store()
         pass
     
@@ -123,7 +179,7 @@ class DataSetClass:
         
         pass
     
-    def parse_img(self, filename, label):
+    def parse_png(self, filename, label):
         # https://towardsdatascience.com/multi-label-image-classification-in-tensorflow-2-0-7d4cf8a4bc72
         
         IMG_SIZE = 128
@@ -145,7 +201,7 @@ class DataSetClass:
         # Create a first dataset of file paths and labels
         dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
         # Parse and preprocess observations in parallel
-        dataset = dataset.map(self.parse_img, num_parallel_calls=AUTOTUNE)
+        dataset = dataset.map(self.parse_png, num_parallel_calls=AUTOTUNE)
         
         if is_training == True:
             # This is a small dataset, only load it once, and keep it in memory.
@@ -181,7 +237,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 2
+    TEST = 4
     
     # %%
     if TEST == 1:
@@ -194,7 +250,7 @@ if __name__== "__main__":
         
         
         myIFE = ImportFromExtraction(dir_learn, fpath_learning)
-        myIFE.process()
+        myIFE.process(True)
         
         pass
     
@@ -214,8 +270,42 @@ if __name__== "__main__":
         
         myDSC = DataSetClass()
         ds = myDSC.create_dataset(X_data, y_data)
+        
+    
+    # %%
+    if TEST == 3:
+        fashion_mnist = keras.datasets.fashion_mnist
+        (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
+        pass
     
     
+    # %%
+    if TEST == 4:
+        path_imgs = "learning/imgs.p"
+        x_d, y_d, w_d = pickle.load( open( path_imgs, "rb" ) )
+        pass
+    
+    
+    # %%
+    # https://studymachinelearning.com/keras-imagedatagenerator/
+    #https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+    
+    if TEST == 5:
+        from keras.preprocessing.image import ImageDataGenerator
+        path_imgs = "learning/imgs"
+        
+        x_d, y_d = pickle.load( open( path_imgs, "rb" ) )
+        
+        image_generator = ImageDataGenerator(
+                        rotation_range=10,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255)
+        
+        # dataset = image_generator.flow_from_directory(directory=str(path_imgs),
     
     
     
