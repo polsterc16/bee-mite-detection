@@ -300,6 +300,16 @@ if __name__== "__main__":
         path_imgs = "learning/imgs"
         path_pickle = "learning/imgs.p"
         
+        image_generator = ImageDataGenerator(
+                        rotation_range=10,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255)
+        #%%
+        
         
         df = pd.read_csv("learning/data__csv.csv", index_col=0)
         df["labels"]=""
@@ -314,20 +324,13 @@ if __name__== "__main__":
             else:
                 label=[]
             df.at[i,"labels"]=label
-        
-        image_generator = ImageDataGenerator(
-                        rotation_range=10,
-                        width_shift_range=0.1,
-                        height_shift_range=0.1,
-                        zoom_range=.1,
-                        horizontal_flip=True,
-                        vertical_flip=True,
-                        rescale=1./255)
-        
+            
         img_iter = image_generator.flow_from_dataframe(
             df,
             x_col='fpath',
             y_col='labels',
+            weight_col="weight",
+            color_mode="grayscale",
             target_size = (128,128),
             class_mode='categorical',
             save_to_dir="learning/output", 
@@ -345,6 +348,7 @@ if __name__== "__main__":
         my_flow = image_generator.flow(x_d, y_d, sample_weight=w_d, seed=42, 
                                         save_to_dir="learning/output", 
                                         save_prefix="img_gen_")
+        temp = my_flow.next()
         
         # dataset = image_generator.flow_from_directory(directory=str(path_imgs),
     
