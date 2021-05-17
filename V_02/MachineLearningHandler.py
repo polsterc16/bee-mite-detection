@@ -328,8 +328,13 @@ if __name__== "__main__":
             df,
             x_col='fpath',
             y_col='labels',
-            class_mode='categorical'
+            target_size = (128,128),
+            class_mode='categorical',
+            save_to_dir="learning/output", 
+            save_prefix="img_gen_"
         )
+        
+        img_iter.next()
         
         # my_flow = image_generator.flow(x_d, y_d, sample_weight=w_d, seed=42, 
         #                                save_to_dir="learning/output", 
