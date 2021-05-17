@@ -745,39 +745,68 @@ class LabelInspectorClass:
     
     def df_analyze(self):
         df = self._df_labels
-        self.df_beeYes = df.where(df["has_bee"] > 0)
-        self.df_beeYes.dropna(inplace=True)
-        self.df_beeNo =  df.where(df["has_bee"] <= 0)
-        self.df_beeNo.dropna(inplace=True)
+        # self.df_beeYes = df.where(df["has_bee"] > 0)
+        # self.df_beeYes.dropna(inplace=True)
+        # self.df_beeNo =  df.where(df["has_bee"] <= 0)
+        # self.df_beeNo.dropna(inplace=True)
+        
+        self.len_bee = {}
+        
+        df_bY = df.loc[df["has_bee"] > 0]           # bee yes
+        df_bYS = df_bY.loc[df_bY["img_sharp"] > 0]  # sharp
+        df_bYF = df_bY.loc[df_bY["img_sharp"] <= 0] # fuzzy
+        
+        self.len_bee["bY"] =    len(df_bY)  # number of bee imgs
+        self.len_bee["bYS"] =   len(df_bYS) # bee yes: sharp
+        self.len_bee["bYF"] =   len(df_bYF) # bee yes: fuzzy
+        
+        # all rows with abdomen pos definded have a "(" inside that column: Regex: "\("
+        df_bYSaY = df_bYS.loc[df_bYS['rel_pos_abdomen'].str.contains('\(') ]
+        df_bYFaY = df_bYF.loc[df_bYF['rel_pos_abdomen'].str.contains('\(') ]
+        # df_bYSaY = df_bYS.loc[ ( df_bYS["rel_pos_abdomen"] ) not in [""," ",str(None)] ]  # sharp bee imgs WITH abdomen pos
+        # df_bYFaY = df_bYF.loc[ ( df_bYF["rel_pos_abdomen"] ) not in [""," ",str(None)] ]  # fuzzy bee imgs WITH abdomen pos
+        
+        self.len_bee["bYSaY"] =   len(df_bYSaY)                 # number of sharp bee: with abdomen
+        self.len_bee["bYSaN"] =   len(df_bYS) - len(df_bYSaY)   # number of sharp bee: withOUT abdomen
+        self.len_bee["bYFaY"] =   len(df_bYFaY)                 # number of fuzzy bee: with abdomen
+        self.len_bee["bYFaN"] =   len(df_bYF) - len(df_bYFaY)   # number of fuzzy bee: withOUT abdomen
+        
+        df_bN = df.loc[df["has_bee"] <= 0]          # bee noo
+        df_bNS = df_bN.loc[df_bN["img_sharp"] > 0]  # sharp
+        df_bNF = df_bN.loc[df_bN["img_sharp"] <= 0] # fuzzy
+        
+        self.len_bee["bN"] =    len(df_bN)  # number of empty imgs
+        self.len_bee["bNS"] =   len(df_bNS) # bee no: sharp
+        self.len_bee["bNF"] =   len(df_bNF) # bee no: fuzzy
+        
+        # df_label_match = df_labels.loc[df_labels["parent_fname"] == row_empty["src_fname"]]
         pass
     
     def show_info(self):
-        df_bY = self.df_beeYes
-        df_bN = self.df_beeNo
+        dct = self.len_bee
         
-        df_bYsY = df_bY.where(df_bY["img_sharp"]>0)
-        df_bYsY.dropna(inplace=True)
-        df_bYsN = df_bY.where(df_bY["img_sharp"]<=0)
-        df_bYsN.dropna(inplace=True)
+        print("+ BEE: {} ({} vs {})".format(dct["bY"], dct["bYS"], dct["bYF"]) )
+        print("- bee: {} ({} vs {})".format(dct["bN"], dct["bNS"], dct["bNF"]) )
         
-        df_bNsY = df_bN.where(df_bN["img_sharp"]>0)
-        df_bNsY.dropna(inplace=True)
-        df_bNsN = df_bN.where(df_bN["img_sharp"]<=0)
-        df_bNsN.dropna(inplace=True)
-        print("+ BEE",len(df_bYsY), len(df_bYsN))
-        print("- bee",len(df_bNsY), len(df_bNsN))
-        wedge_sizes = [len(df_bYsY), len(df_bYsN), len(df_bNsN), len(df_bNsY)]
-        labels = ["is bee\n(sharp)","is bee\n(fuzzy)","no bee\n(fuzzy)","no bee\n(sharp)"]
-        colors = ["dodgerblue", "royalblue","gold", "yellow"]
+        wedge_bYNSF = [dct["bYS"], dct["bYF"], dct["bNF"], dct["bNS"]]
+        label_bYNSF = ["is bee\n(sharp)","is bee\n(fuzzy)","no bee\n(fuzzy)","no bee\n(sharp)"]
+        color_bYNSF = ["dodgerblue", "royalblue","gold", "yellow"]
+        title_bYNSF = "Labeling of Focus imgs:\nBee ({}) vs Empty ({})".format(dct["bY"], dct["bN"])
+        
+        wedge_bYSFaYN = [dct["bYSaY"], dct["bYSaN"], dct["bYFaN"], dct["bYFaY"]]
+        label_bYSFaYN = ["sharp\n(pos:Y)","sharp\n(pos:N)","fuzzy\n(pos:N)","fuzzy\n(pos:Y)"]
+        color_bYSFaYN = ["orangered", "coral","aquamarine", "turquoise"]
+        title_bYSFaYN = "Abdomen position given in bee imgs:\nSharp ({}) vs Fuzzy({})".format(dct["bYS"], dct["bYF"])
         
         # plt.close('all')
         
         # make new figure
-        self.fig, self.ax = plt.subplots()
+        self.fig, self.ax = plt.subplots(1,2)
         
-        self.ax.pie(wedge_sizes, labels=labels, autopct='%1.1f%%', colors=colors, startangle=90)
-        txt = "Labeled Images: {}\nDetected Bees ({}) vs Empty Images ({})".format(len(self._df_labels), len(df_bYsY)+len(df_bYsN), len(df_bNsN)+len(df_bNsY))
-        self.ax.set_title(txt)
+        self.ax[0].pie(wedge_bYNSF, labels=label_bYNSF, autopct='%1.1f%%', colors=color_bYNSF, startangle=90)
+        self.ax[0].set_title(title_bYNSF)
+        self.ax[1].pie(wedge_bYSFaYN, labels=label_bYSFaYN, autopct='%1.1f%%', colors=color_bYSFaYN, startangle=90)
+        self.ax[1].set_title(title_bYSFaYN)
         
         self.fig.tight_layout()
         self.fig.show()
@@ -1114,7 +1143,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 1
+    TEST = 2
     
     # %%
     if TEST == 1:
@@ -1128,6 +1157,7 @@ if __name__== "__main__":
 
     # %%
     if TEST == 2:
+        print("Show which of you labeled images has bees or is empty")
         myLIC = LabelInspectorClass()
         # my_df = myLIC._df_labels
         # df_beeY = myLIC.df_beeYes
@@ -1137,6 +1167,7 @@ if __name__== "__main__":
 
     # %%
     if TEST == 3:
+        print("Label/Show which of the source images is empty/populated")
         plt.close('all')
         # path_src = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "extracted"
@@ -1152,6 +1183,7 @@ if __name__== "__main__":
     
     # %%
     if TEST==4:
+        print("Write all focus images in the lavel-csv, that come from a confirmed empty src image, to have no bees")
         plt.close('all')
         # path_src = "D:\\ECM_PROJECT\\bee_images_small"
         path_extr = "extracted"
