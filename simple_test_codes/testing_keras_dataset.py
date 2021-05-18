@@ -154,18 +154,18 @@ if __name__== "__main__":
         
         
         df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
-        df["labels"]=""
-        for i in tqdm( range(len(df)), desc="going through df"):
-            row = df.iloc[i]
-            bee = row["has_bee"]
-            mite = row["has_mite"]
-            if bee>0 and mite>0:
-                label=["bee","mite"]
-            elif bee>0:
-                label=["bee"]
-            else:
-                label=[]
-            df.at[i,"labels"]=label
+        # df["labels"]=""
+        # for i in tqdm( range(len(df)), desc="going through df"):
+        #     row = df.iloc[i]
+        #     bee = row["has_bee"]
+        #     mite = row["has_mite"]
+        #     if bee>0 and mite>0:
+        #         label=["bee","mite"]
+        #     elif bee>0:
+        #         label=["bee"]
+        #     else:
+        #         label=[]
+        #     df.at[i,"labels"]=label
             
         img_iter = image_generator.flow_from_dataframe(
             df,
