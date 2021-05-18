@@ -22,6 +22,9 @@ import tensorflow as tf
 from tensorflow import keras
 from keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
 # from tensorflow.keras.models import Sequential
 
 #%%
@@ -109,7 +112,7 @@ class ImportFromExtraction:
             
             bee = row["has_bee"]
             mite = row["has_mite"]
-            label=["img"]
+            label=[]
             if bee>0:
                 label.append("bee")
                 if mite>0:
@@ -163,12 +166,11 @@ class ImportFromExtraction:
             
             bee = row["has_bee"]
             mite = row["has_mite"]
-            if bee>0 and mite>0:
-                label=["bee","mite"]
-            elif bee>0:
-                label=["bee"]
-            else:
-                label=[]
+            label=[]
+            if bee>0:
+                label.append("bee")
+                if mite>0:
+                    label.append("mite")
             
             data_slice = {"fname": fname,
                           "fpath": fpath,
@@ -241,7 +243,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 2
+    TEST = 4
     
     # %%
     if TEST == 1:
@@ -254,7 +256,7 @@ if __name__== "__main__":
         
         
         myIFE = ImportFromExtraction(dir_learn, fpath_learning)
-        myIFE.process(True)
+        myIFE.process()
         
         pass
     
@@ -298,46 +300,11 @@ if __name__== "__main__":
                         rescale=1./255,
                         validation_split=0.2)
         
-        df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
-        # len_df = (len(df)//32)*32
-        # df = df.iloc[:len_df]
-        
-        # dgen = image_generator.flow_from_dataframe(
-        #     df,
-        #     x_col='fpath',
-        #     y_col='labels',
-        #     # weight_col="weight",
-        #     color_mode="grayscale",
-        #     target_size = (128,128),
-        #     class_mode='categorical',
-        #     )
-        # temp=dgen.next()
-        
-        # dgen_train = image_generator.flow_from_dataframe(
-        #     df,
-        #     x_col='fpath',
-        #     y_col='labels',
-        #     # weight_col="weight",
-        #     color_mode="grayscale",
-        #     target_size = (128,128),
-        #     class_mode='categorical',
-        #     subset="training")
-        # dgen_valid = image_generator.flow_from_dataframe(
-        #     df,
-        #     x_col='fpath',
-        #     y_col='labels',
-        #     # weight_col="weight",
-        #     color_mode="grayscale",
-        #     target_size = (128,128),
-        #     class_mode='categorical',
-        #     subset="validation")
         
         
         path_pickle = "D:\\ECM_PROJECT\\pythoncode\\V_02\\learning\\imgs.p"
         x_d, y_d, w_d = pickle.load( open( path_pickle, "rb" ) )
         
-        from sklearn.model_selection import train_test_split
-        from sklearn.metrics import classification_report, confusion_matrix
         # X_train, X_test, y_train, y_test
         x_train,x_test,y_train,y_test = train_test_split(x_d, y_d, test_size=0.20, random_state=33)
         w_train,w_test = train_test_split(w_d, test_size=0.20, random_state=33)
@@ -356,6 +323,233 @@ if __name__== "__main__":
         model.evaluate(x_test,y_test,verbose=1)
         
         predictions = model.predict_classes(x_test)
+        
+        
+        pass
+    
+    # %%
+    if TEST == 3:
+        from tensorflow.keras.optimizers import Adam
+        # from tensorflow.keras.layers import Flatten, Dense, Dropout, BatchNormalization, Conv2D, MaxPool2D
+        
+        
+        # setup datagenerator
+        print("setup datagenerator")
+        image_generator = ImageDataGenerator(
+                        rotation_range=30,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255,
+                        validation_split=0.2)
+        
+        df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
+        # len_df = (len(df)//32)*32
+        # df = df.iloc[:len_df]
+        
+        dgen = image_generator.flow_from_dataframe(
+            df,
+            x_col='fpath',
+            y_col='labels',
+            # weight_col="weight",
+            color_mode="grayscale",
+            target_size = (128,128),
+            # class_mode="raw",
+            class_mode='categorical',
+            )
+        val_data = dgen.next()
+        
+        
+        # 128x128
+        # 5x5 kernels, stride 3:
+        # 128 / 3 = ca 43 -> 43x43 img
+        # 5*5 * 43*43 = 46225 multiplications per img
+        # subpooling 3x3:
+        # 43 / 3 = ca 15 -> 15x15 img
+        # 15*15=225 flattened parameters
+        
+        # setup model
+        print("setup model")
+        model = tf.keras.models.Sequential()
+        
+        model.add(layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(1,1),
+                                input_shape=val_data[0][0].shape, activation = 'relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 64*64
+        model.add(tf.keras.layers.Dropout(0.3))
+        
+        model.add(layers.Conv2D(filters = 32, kernel_size = (3,3), activation = 'relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 32*32
+        model.add(tf.keras.layers.Dropout(0.4))
+        
+        model.add(layers.Conv2D(filters = 64, kernel_size = (3,3), activation = 'relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 16*16
+        model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Flatten())
+        units = 128 # num of hidden layers
+        
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 1
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 2
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Dense(units=3, activation='sigmoid'))   # output layer
+        
+        
+        model.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+        
+        
+        # start training
+        print("start training")
+        model.fit(dgen, epochs = 10, verbose=1, 
+                  validation_data=val_data )
+        # model.fit(dgen_train, epochs = 10, verbose=1, 
+        #           validation_data=dgen_test)
+        
+        
+        metrics = pd.DataFrame(model.history.history)
+        metrics[['loss','val_loss']].plot()
+        metrics[['accuracy','val_accuracy']].plot()
+        
+        
+        # model.evaluate(x_test,y_test,verbose=1)
+        
+        # predictions = model.predict_classes(x_test)
+        
+        
+        pass
+    
+    # %%
+    if TEST == 4:
+        from tensorflow.keras.optimizers import Adam
+        # from tensorflow.keras.layers import Flatten, Dense, Dropout, BatchNormalization, Conv2D, MaxPool2D
+        
+        
+        # setup datagenerator
+        print("setup datagenerator")
+        image_generator = ImageDataGenerator(
+                        rotation_range=45,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255,
+                        validation_split=0.1)
+        
+        df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
+        # len_df = (len(df)//32)*32
+        # df = df.iloc[:len_df]
+        # shuffle the DataFrame rows
+        df = df.sample(frac = 1)
+        
+        dgen_train = image_generator.flow_from_dataframe(
+            df,
+            # batch_size=64,
+            x_col='fpath',
+            y_col=["has_bee","has_mite"],
+            weight_col="weight",
+            color_mode="grayscale",
+            target_size = (64,64),
+            class_mode="raw",
+            # class_mode='categorical',
+            subset="training"
+            )
+        
+        dgen_val = image_generator.flow_from_dataframe(
+            df,
+            # batch_size=64,
+            x_col='fpath',
+            y_col=["has_bee","has_mite"],
+            weight_col="weight",
+            color_mode="grayscale",
+            target_size = (64,64),
+            class_mode="raw",
+            # class_mode='categorical',
+            subset="validation"
+            )
+        # a=dgen_val.
+        
+        v_x,v_y,v_w = dgen_val.next()
+        for i in tqdm(range(dgen_val.samples//dgen_val.batch_size//2)):
+            v_x2,v_y2,v_w2 = dgen_val.next()
+            v_x = np.concatenate((v_x,v_x2))
+            v_y = np.concatenate((v_y,v_y2))
+            v_w = np.concatenate((v_w,v_w2))
+        
+        
+        # 128x128
+        # 5x5 kernels, stride 3:
+        # 128 / 3 = ca 43 -> 43x43 img
+        # 5*5 * 43*43 = 46225 multiplications per img
+        # subpooling 3x3:
+        # 43 / 3 = ca 15 -> 15x15 img
+        # 15*15=225 flattened parameters
+        
+        # setup model
+        print("setup model")
+        model = tf.keras.models.Sequential()
+        
+        model.add(layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(1,1),
+                                input_shape=v_x[0].shape, activation = 'relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 64*64
+        model.add(tf.keras.layers.Dropout(0.3))
+        
+        model.add(layers.Conv2D(filters = 32, kernel_size = (3,3), activation = 'relu'))
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 32*32
+        model.add(tf.keras.layers.Dropout(0.4))
+        
+        # model.add(layers.Conv2D(filters = 64, kernel_size = (3,3), activation = 'relu'))
+        # model.add(tf.keras.layers.BatchNormalization())
+        # model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 16*16
+        # model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Flatten())
+        units = 512 # num of hidden layers
+        
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 1
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 2
+        model.add(tf.keras.layers.BatchNormalization())
+        model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(tf.keras.layers.Dense(units=2, activation='sigmoid'))   # output layer
+        
+        
+        model.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+        early_stop = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 10)
+        
+        # start training
+        print("start training")
+        model.fit(dgen_train, epochs = 40, verbose=1,
+                  validation_data=(v_x,v_y,v_w),
+                  # class_weight={0:1,1:1,2:0},
+                  steps_per_epoch = 64,
+                  callbacks=early_stop )
+        # model.fit(dgen_train, epochs = 10, verbose=1, 
+        #           validation_data=dgen_test)
+        
+        plt.close("all")
+        metrics = pd.DataFrame(model.history.history)
+        metrics[['loss','val_loss']].plot()
+        metrics[['accuracy','val_accuracy']].plot()
+        
+        
+        # model.evaluate(x_test,y_test,verbose=1)
+        
+        # predictions = model.predict_classes(x_test)
         
         
         pass
