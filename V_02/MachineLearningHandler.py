@@ -4,8 +4,7 @@ Created on Mon May 17 19:55:52 2021
 
 @author: Admin
 
-https://medium.com/analytics-vidhya/image-classification-with-tf-keras-introductory-tutorial-7e0ebb73d044
-https://blog.eduonix.com/artificial-intelligence/convolutional-neural-networks-keras/
+# https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
 """
 
 import cv2
@@ -21,7 +20,8 @@ from tqdm import tqdm
 
 import tensorflow as tf
 from tensorflow import keras
-# from tensorflow.keras import layers
+from keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras import layers
 # from tensorflow.keras.models import Sequential
 
 #%%
@@ -73,11 +73,12 @@ class ImportFromExtraction:
         if len(self._df_source) < min_length_csv:
             raise Exception("Source csv-file is too short!" ); pass
         
-        columns = self._df_source.columns
+        columns = self._df_source.columns.tolist()
         fname_data = "data"
         self._df_fname_data_csv =  os.path.join(self._dir_learning, "{}__csv.csv".format(fname_data))
         self._df_fname_data_scsv = os.path.join(self._dir_learning, "{}__scsv.csv".format(fname_data))
         
+        columns.append("labels")
         self._df_data = pd.DataFrame(columns=columns)
         pass
     
@@ -106,6 +107,14 @@ class ImportFromExtraction:
             img = cv2.imread(row["fpath"], cv2.IMREAD_GRAYSCALE)    # read img as grayscale
             cv2.imwrite(fpath, img)     # store img to target destination
             
+            bee = row["has_bee"]
+            mite = row["has_mite"]
+            label=["img"]
+            if bee>0:
+                label.append("bee")
+                if mite>0:
+                    label.append("mite")
+            
             data_slice = {"fname": fname,
                           "fpath": fpath,
                           "src_fname":  row["src_fname"],
@@ -115,7 +124,8 @@ class ImportFromExtraction:
                           "pos_anchor": row["pos_anchor"],
                           "has_bee":    row["has_bee"],
                           "has_mite":   row["has_mite"],
-                          "weight":     row["weight"]}
+                          "weight":     row["weight"],
+                          "labels":     label}
             
             self._df_data.at[i] = pd.Series(data_slice)
             
@@ -151,6 +161,15 @@ class ImportFromExtraction:
             y_data[i] = [int(row["has_bee"]), int(row["has_mite"])]
             w_data[i] = row["weight"]
             
+            bee = row["has_bee"]
+            mite = row["has_mite"]
+            if bee>0 and mite>0:
+                label=["bee","mite"]
+            elif bee>0:
+                label=["bee"]
+            else:
+                label=[]
+            
             data_slice = {"fname": fname,
                           "fpath": fpath,
                           "src_fname":  row["src_fname"],
@@ -160,7 +179,8 @@ class ImportFromExtraction:
                           "pos_anchor": row["pos_anchor"],
                           "has_bee":    row["has_bee"],
                           "has_mite":   row["has_mite"],
-                          "weight":     row["weight"]}
+                          "weight":     row["weight"],
+                          "labels":     label}
             
             self._df_data.at[i] = pd.Series(data_slice)
             
@@ -173,9 +193,35 @@ class ImportFromExtraction:
         self.df_store()
         pass
     
+    pass
+
+
+#%%
+
+class conv2d_class:
+    def __init__(self, dir_learning):
+        
+        
+        pass
+    # -------------------------------------------------------------------------
+    def check_isdir(self,path):
+        """Stop object creation, if no valid directory path is given. Returns the absolute path."""
+        if (os.path.isdir(path) == False):
+            raise Exception("Requires a legal directory path!")
+        return os.path.abspath(path)
+    def check_isfile(self,path):
+        """Stop object creation, if no valid file path is given. Returns the absolute path."""
+        if (os.path.isfile(path) == False):
+            raise Exception("Requires a legal file path!")
+        return os.path.abspath(path)
     
-
-
+    def set_dir_learning(self,path):
+        img_dir_name = "imgs"
+        self._dir_learning = self.check_isdir(path)
+        self._dir_learning_imgs = self.check_isdir( os.path.join(self._dir_learning, img_dir_name) )
+        pass
+    
+    pass
 
 
 #%%
@@ -187,6 +233,7 @@ if __name__== "__main__":
     print("numpy.version = {}".format(np.__version__))
     print("matplotlib.version = {}".format(mpl.__version__))
     print("pandas.version = {}".format(pd.__version__))
+    print("tensorflow.version = {}".format(tf.__version__))
     print()
     
     
@@ -194,7 +241,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 5
+    TEST = 2
     
     # %%
     if TEST == 1:
@@ -214,7 +261,104 @@ if __name__== "__main__":
     # %%
     if TEST == 2:
         
-    
+        # 128x128
+        # 5x5 kernels, stride 3:
+        # 128 / 3 = ca 43 -> 43x43 img
+        # 5*5 * 43*43 = 46225 multiplications per img
+        # subpooling 3x3:
+        # 43 / 3 = ca 15 -> 15x15 img
+        # 15*15=225 flattened parameters
+        
+        # setup model
+        print("setup model")
+        model = tf.keras.models.Sequential()
+        model.add(layers.Conv2D(filters = 32, kernel_size = (5,5), strides=(3,3),
+                                input_shape=(128,128,1), activation = 'relu'))
+        model.add(tf.keras.layers.MaxPool2D(pool_size=(3,3)))
+        model.add(tf.keras.layers.Flatten())
+        dropout = 0.5
+        units = 512 # num of hidden layers
+        model.add(tf.keras.layers.Dropout(dropout))
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 1
+        model.add(tf.keras.layers.Dropout(dropout))
+        model.add(tf.keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 2
+        model.add(tf.keras.layers.Dense(units=2, activation='sigmoid'))   # output layer
+        
+        model.compile(optimizer = 'rmsprop', loss = 'binary_crossentropy', metrics = ['accuracy'])
+        
+        # setup datagenerator
+        print("setup datagenerator")
+        image_generator = ImageDataGenerator(
+                        rotation_range=30,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255,
+                        validation_split=0.2)
+        
+        df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
+        # len_df = (len(df)//32)*32
+        # df = df.iloc[:len_df]
+        
+        # dgen = image_generator.flow_from_dataframe(
+        #     df,
+        #     x_col='fpath',
+        #     y_col='labels',
+        #     # weight_col="weight",
+        #     color_mode="grayscale",
+        #     target_size = (128,128),
+        #     class_mode='categorical',
+        #     )
+        # temp=dgen.next()
+        
+        # dgen_train = image_generator.flow_from_dataframe(
+        #     df,
+        #     x_col='fpath',
+        #     y_col='labels',
+        #     # weight_col="weight",
+        #     color_mode="grayscale",
+        #     target_size = (128,128),
+        #     class_mode='categorical',
+        #     subset="training")
+        # dgen_valid = image_generator.flow_from_dataframe(
+        #     df,
+        #     x_col='fpath',
+        #     y_col='labels',
+        #     # weight_col="weight",
+        #     color_mode="grayscale",
+        #     target_size = (128,128),
+        #     class_mode='categorical',
+        #     subset="validation")
+        
+        
+        path_pickle = "D:\\ECM_PROJECT\\pythoncode\\V_02\\learning\\imgs.p"
+        x_d, y_d, w_d = pickle.load( open( path_pickle, "rb" ) )
+        
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import classification_report, confusion_matrix
+        # X_train, X_test, y_train, y_test
+        x_train,x_test,y_train,y_test = train_test_split(x_d, y_d, test_size=0.20, random_state=33)
+        w_train,w_test = train_test_split(w_d, test_size=0.20, random_state=33)
+        
+        # start training
+        print("start training")
+        model.fit(x=x_train, y=y_train, sample_weight=w_train, epochs = 10, verbose=1, 
+                  validation_split=0.2)
+        
+        
+        metrics = pd.DataFrame(model.history.history)
+        metrics[['loss','val_loss']].plot()
+        metrics[['accuracy','val_accuracy']].plot()
+        
+        
+        model.evaluate(x_test,y_test,verbose=1)
+        
+        predictions = model.predict_classes(x_test)
+        
+        
+        pass
     
     
     
