@@ -245,7 +245,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 4
+    TEST = 5
     
     # %%
     if TEST == 1:
@@ -465,7 +465,7 @@ if __name__== "__main__":
             y_col=["has_bee","has_mite"],
             weight_col="weight",
             color_mode="grayscale",
-            target_size = (64,64),
+            target_size = (128,128),
             class_mode="raw",
             # class_mode='categorical',
             subset="training"
@@ -478,7 +478,7 @@ if __name__== "__main__":
             y_col=["has_bee","has_mite"],
             weight_col="weight",
             color_mode="grayscale",
-            target_size = (64,64),
+            target_size = (128,128),
             class_mode="raw",
             # class_mode='categorical',
             subset="validation"
@@ -506,16 +506,16 @@ if __name__== "__main__":
         print("setup model")
         model = keras.models.Sequential()
         
-        model.add(keras.layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(1,1),
+        model.add(keras.layers.Conv2D(filters = 8, kernel_size = (3,3), strides=(1,1),
                                 input_shape=temp_img.shape, activation = 'relu'))
         model.add(keras.layers.BatchNormalization())
-        model.add(keras.layers.MaxPool2D(pool_size=(2,2))) # 64*64
-        model.add(keras.layers.Dropout(0.3))
+        model.add(keras.layers.MaxPool2D(pool_size=(4,4))) # 64*64
+        model.add(keras.layers.Dropout(0.2))
         
-        model.add(keras.layers.Conv2D(filters = 32, kernel_size = (3,3), activation = 'relu'))
+        model.add(keras.layers.Conv2D(filters = 16, kernel_size = (3,3), activation = 'relu'))
         model.add(keras.layers.BatchNormalization())
         model.add(keras.layers.MaxPool2D(pool_size=(2,2))) # 32*32
-        model.add(keras.layers.Dropout(0.4))
+        model.add(keras.layers.Dropout(0.3))
         
         # model.add(layers.Conv2D(filters = 64, kernel_size = (3,3), activation = 'relu'))
         # model.add(tf.keras.layers.BatchNormalization())
@@ -523,7 +523,7 @@ if __name__== "__main__":
         # model.add(tf.keras.layers.Dropout(0.5))
         
         model.add(keras.layers.Flatten())
-        units = 512 # num of hidden layers
+        units = 256 # num of hidden layers
         
         model.add(keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 1
         model.add(keras.layers.BatchNormalization())
@@ -533,16 +533,19 @@ if __name__== "__main__":
         model.add(keras.layers.BatchNormalization())
         model.add(keras.layers.Dropout(0.5))
         
-        model.add(keras.layers.Dense(units=2, activation='sigmoid'))   # output layer
+        model.add(keras.layers.Dense(units=2, activation=None))   # output layer
         
-        model.compile(optimizer = 'adam', loss = 'binary_crossentropy', metrics = ['accuracy'])
+        model.compile(optimizer = 'adam', 
+                      loss = tf.nn.sigmoid_cross_entropy_with_logits, 
+                      # loss = 'binary_crossentropy', 
+                      metrics = ['accuracy'])
         early_stop = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 5)
         
         # start training
         print("start training")
         model.fit(dgen_train, 
                 # steps_per_epoch=int(4000/dgen_train.batch_size),
-                epochs = 64, 
+                epochs = 20, 
                 validation_data = dgen_val,
                 # validation_steps=int(1000/dgen_val.batch_size),
                 verbose=1, 
@@ -557,6 +560,151 @@ if __name__== "__main__":
         plt.title("Loss")
         metrics[['accuracy','val_accuracy']].plot()
         plt.hlines(1,0,model.history.epoch[-1],linestyles="dashed")
+        plt.title("Accuracy")
+        
+        print(model.summary())
+        # model.evaluate(x_test,y_test,verbose=1)
+        
+        # predictions = model.predict_classes(x_test)
+        
+        
+        pass
+    
+    # %%
+    if TEST == 5:
+        from tensorflow.keras.optimizers import Adam
+        # from tensorflow.keras.layers import Flatten, Dense, Dropout, BatchNormalization, Conv2D, MaxPool2D
+        
+        print("detect mite standalone")
+        
+        # setup datagenerator
+        print("setup datagenerator")
+        image_generator = ImageDataGenerator(
+                        rotation_range=45,
+                        width_shift_range=0.1,
+                        height_shift_range=0.1,
+                        zoom_range=.1,
+                        horizontal_flip=True,
+                        vertical_flip=True,
+                        rescale=1./255,
+                        validation_split=0.2
+                        )
+        
+        df = pd.read_csv("D:\\ECM_PROJECT\\pythoncode\\V_02/learning/data__csv.csv", index_col=0)
+        # len_df = (len(df)//32)*32
+        # df = df.iloc[:len_df]
+        # shuffle the DataFrame rows
+        df = df.sample(frac = 1)
+        # split_ratio = 0.2
+        # split_i = int( len(df)*split_ratio )
+        # df_train = df.iloc[split_i:]
+        # df_val = df.iloc[:split_i]
+        
+        dgen_train = image_generator.flow_from_dataframe(
+            df,
+            # batch_size=64,
+            x_col='fpath',
+            y_col=["has_mite"],
+            # weight_col="weight",
+            color_mode="grayscale",
+            target_size = (128,128),
+            class_mode="raw",
+            # class_mode='categorical',
+            subset="training"
+            )
+        
+        dgen_val = image_generator.flow_from_dataframe(
+            df,
+            # batch_size=64,
+            x_col='fpath',
+            y_col=["has_mite"],
+            # weight_col="weight",
+            color_mode="grayscale",
+            target_size = (128,128),
+            class_mode="raw",
+            # class_mode='categorical',
+            subset="validation"
+            )
+        temp_batch = dgen_val.next()
+        temp_img = temp_batch[0][0]
+        
+        # v_x,v_y,v_w = dgen_val.next()
+        # for i in tqdm(range( int(dgen_val.samples/1.5)//dgen_val.batch_size) ):
+        #     v_x2,v_y2,v_w2 = dgen_val.next()
+        #     v_x = np.concatenate((v_x,v_x2))
+        #     v_y = np.concatenate((v_y,v_y2))
+        #     v_w = np.concatenate((v_w,v_w2))
+        
+        
+        # 128x128
+        # 5x5 kernels, stride 3:
+        # 128 / 3 = ca 43 -> 43x43 img
+        # 5*5 * 43*43 = 46225 multiplications per img
+        # subpooling 3x3:
+        # 43 / 3 = ca 15 -> 15x15 img
+        # 15*15=225 flattened parameters
+        
+        # setup model
+        print("setup model")
+        model = keras.models.Sequential()
+        
+        model.add(keras.layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(2,2),
+                                input_shape=temp_img.shape, activation = 'relu'))
+        model.add(keras.layers.BatchNormalization())
+        model.add(keras.layers.MaxPool2D(pool_size=(2,2))) # 64*64
+        model.add(keras.layers.Dropout(0.2))
+        
+        model.add(keras.layers.Conv2D(filters = 32, kernel_size = (3,3), activation = 'relu'))
+        model.add(keras.layers.BatchNormalization())
+        model.add(keras.layers.MaxPool2D(pool_size=(2,2))) # 32*32
+        model.add(keras.layers.Dropout(0.3))
+        
+        # model.add(layers.Conv2D(filters = 64, kernel_size = (3,3), activation = 'relu'))
+        # model.add(tf.keras.layers.BatchNormalization())
+        # model.add(tf.keras.layers.MaxPool2D(pool_size=(2,2))) # 16*16
+        # model.add(tf.keras.layers.Dropout(0.5))
+        
+        model.add(keras.layers.Flatten())
+        units = 256 # num of hidden layers
+        
+        model.add(keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 1
+        model.add(keras.layers.BatchNormalization())
+        model.add(keras.layers.Dropout(0.5))
+        
+        model.add(keras.layers.Dense(units = units, activation = 'relu')) # hidden layer 2
+        model.add(keras.layers.BatchNormalization())
+        model.add(keras.layers.Dropout(0.5))
+        
+        model.add(keras.layers.Dense(units=1, activation="sigmoid"))   # output layer
+        
+        model.compile(optimizer = 'rmsprop', 
+                        loss = 'mse', 
+                      # loss = tf.nn.sigmoid_cross_entropy_with_logits, 
+                       # loss = 'binary_crossentropy', 
+                      metrics = ['accuracy'])
+        early_stop = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 5)
+        
+        # start training
+        print("start training")
+        model.fit(dgen_train, 
+                # steps_per_epoch=int(4000/dgen_train.batch_size),
+                epochs = 30, 
+                validation_data = dgen_val,
+                # validation_steps=int(1000/dgen_val.batch_size),
+                verbose=1, 
+                # callbacks=early_stop 
+                )
+        # model.fit(dgen_train, epochs = 10, verbose=1, 
+        #           validation_data=dgen_test)
+        
+        plt.close("all")
+        metrics = pd.DataFrame(model.history.history)
+        metrics[['loss','val_loss']].plot()
+        plt.hlines(1,0,model.history.epoch[-1],linestyles="dashed")
+        plt.title("Loss")
+        metrics[['accuracy','val_accuracy']].plot()
+        plt.hlines(1,0,model.history.epoch[-1],linestyles="dashed")
+        plt.hlines(0.5,0,model.history.epoch[-1],linestyles="dashed")
         plt.title("Accuracy")
         
         print(model.summary())
