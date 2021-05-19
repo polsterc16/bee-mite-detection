@@ -938,6 +938,7 @@ class BeeExtractionHandler:
         # BIC = self._BIC
         path_extr = self.get_path_extracted()
         
+        # short number of iterations dont need to save in between
         if times <= time_size:
             for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
                 # create parent class object
@@ -967,7 +968,8 @@ class BeeExtractionHandler:
             
             self.df_store()
             self.write_last_index_to_file()
-        else:
+            
+        else:  # large number of iterations need to save the DF every 'time_size' images 
             j=0
             supertime = math.ceil(times/time_size)
             for i in range(supertime):
