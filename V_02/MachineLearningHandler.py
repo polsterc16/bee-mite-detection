@@ -604,10 +604,11 @@ if __name__== "__main__":
             df,
             # batch_size=64,
             x_col='fpath',
-            y_col=["has_mite"],
-            # weight_col="weight",
+            # y_col=["has_bee"],
+            y_col=["has_bee","has_mite"],
+            weight_col="weight",
             color_mode="grayscale",
-            target_size = (128,128),
+            target_size = (64,64),
             class_mode="raw",
             # class_mode='categorical',
             subset="training"
@@ -617,10 +618,11 @@ if __name__== "__main__":
             df,
             # batch_size=64,
             x_col='fpath',
-            y_col=["has_mite"],
-            # weight_col="weight",
+            # y_col=["has_bee"],
+            y_col=["has_bee","has_mite"],
+            weight_col="weight",
             color_mode="grayscale",
-            target_size = (128,128),
+            target_size = (64,64),
             class_mode="raw",
             # class_mode='categorical',
             subset="validation"
@@ -648,7 +650,7 @@ if __name__== "__main__":
         print("setup model")
         model = keras.models.Sequential()
         
-        model.add(keras.layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(2,2),
+        model.add(keras.layers.Conv2D(filters = 16, kernel_size = (3,3), strides=(1,1),
                                 input_shape=temp_img.shape, activation = 'relu'))
         model.add(keras.layers.BatchNormalization())
         model.add(keras.layers.MaxPool2D(pool_size=(2,2))) # 64*64
@@ -675,20 +677,27 @@ if __name__== "__main__":
         model.add(keras.layers.BatchNormalization())
         model.add(keras.layers.Dropout(0.5))
         
-        model.add(keras.layers.Dense(units=1, activation="sigmoid"))   # output layer
+        model.add(keras.layers.Dense(
+            units=2, 
+            # units=1, 
+            # activation=None, 
+            activation="sigmoid"
+            ))   # output layer
         
-        model.compile(optimizer = 'rmsprop', 
-                        loss = 'mse', 
-                      # loss = tf.nn.sigmoid_cross_entropy_with_logits, 
-                       # loss = 'binary_crossentropy', 
-                      metrics = ['accuracy'])
+        model.compile(
+            optimizer = 'adam', 
+            # optimizer = 'rmsprop', 
+            # loss = 'mse', 
+            # loss = tf.nn.sigmoid_cross_entropy_with_logits, 
+            loss = 'binary_crossentropy', 
+            metrics = ['accuracy'])
         early_stop = keras.callbacks.EarlyStopping(monitor = 'val_loss', patience = 5)
         
         # start training
         print("start training")
         model.fit(dgen_train, 
                 # steps_per_epoch=int(4000/dgen_train.batch_size),
-                epochs = 30, 
+                epochs = 20, 
                 validation_data = dgen_val,
                 # validation_steps=int(1000/dgen_val.batch_size),
                 verbose=1, 
