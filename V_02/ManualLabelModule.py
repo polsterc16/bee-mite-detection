@@ -1143,7 +1143,7 @@ if __name__== "__main__":
     cv2.destroyAllWindows()
     plt.close('all')
     
-    TEST = 2
+    TEST = 3
     
     # %%
     if TEST == 1:
@@ -1177,8 +1177,8 @@ if __name__== "__main__":
         df_EF = myFEC._df_FE
         myList = myFEC.list_candidates
         
-        # myFEC.labeling()
-        myFEC.analyze()
+        myFEC.labeling()
+        # myFEC.analyze()
         pass
     
     # %%

@@ -287,7 +287,15 @@ class GenerateLearningImagesClass:
             
             #get center offset for placing the mite img
             mite_rows,mite_cols = img_mask.shape[0:2]
-            _, contours, _ = cv2.findContours(img_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            ret = cv2.findContours(img_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # if len(ret)==3 : (image, contours, hierarchy)
+            # if len(ret)==2 : (contours, hierarchy) -> opencv 4!!!
+            if len(ret) == 3: 
+                contours = ret[1]
+            else:
+                contours = ret[0]
+            
             cnt = contours[0];  M = cv2.moments(cnt)
             mite_cx = int(M['m10']/M['m00'])    # get center of mite img
             mite_cy = int(M['m01']/M['m00'])

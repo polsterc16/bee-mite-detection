@@ -202,6 +202,8 @@ class ParentImageClass:
     def p25_openclose_threshold(self, DEBUG=False):
         """Performs Closing (remove black holes) and then Opening 
         (remove lone white pixels) on the Threshold image (source)."""
+        if(self._index>=99): 
+            print("100")
         img = self.img["20 threshold"]
         # TODO: Test, if it works better with one additional erosion and dilation!
         img = cv2.erode(img, self.parent_open_close_kernel)
@@ -229,7 +231,13 @@ class ParentImageClass:
         # We are only interested in the outermost contours (EXTERNAL), 
         #   because everything else does not make sense to handle (bees inside 
         #   a different detected object)
-        _,contours, _ = cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ret= cv2.findContours(self.img["25 reduced"], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # if len(ret)==3 : (image, contours, hierarchy)
+        # if len(ret)==2 : (contours, hierarchy) -> opencv 4!!!
+        if len(ret) == 3: 
+            contours = ret[1]
+        else:
+            contours = ret[0]
         self.contour_list_raw = contours
         pass
     
@@ -322,7 +330,7 @@ class ParentImageClass:
         contours = self.contour_list_valid
         
         for ID,c in contours:
-            self.child_list.append( BeeFocusImage(self,ID, c,
+            self.child_list.append( BeeFocusImage(self,ID, c, self._focus_size,
                                                   self._focus_bg_gauss_kernel_size,
                                                   self._focus_dilate_kernel_size))
         return len(self.child_list)
@@ -613,12 +621,13 @@ class ParentImageClass:
 class BeeFocusImage:
     def __init__(self, parent: ParentImageClass, 
                  bee_ID: int, contour, 
+                 focus_dim = (128,128),
                  bg_gauss_kernel_size=11, dilate_kernel_size=32):
         self.parent = parent
         self.parent_orig = self.parent.img["01 orig"]
         self.parent_dim = self.parent._ILO._scale_dim
         self.bee_ID = bee_ID
-        self.focus_size = self.parent._focus_size
+        self.set_focus_img_size(focus_dim)
         
         self.set_contour(contour)
         
@@ -653,6 +662,23 @@ class BeeFocusImage:
         self.dilate_iter = int( dilate_kernel_size/(ks-1) )
         if self.dilate_iter < 1:
             self.dilate_iter = 1
+        pass
+    
+    def set_focus_img_size(self,dim):
+        """Defines the size of the focus image (which shall contain only the extracted bee).
+        
+        dim: tuple of two ints."""
+        assert type(dim) in [list,tuple]            # ensure, that it is a tuple
+        assert len(dim) == 2                        # ensure, that it has 2 items
+        assert all( [type(v)==int for v in dim] )   # ensure, that it only contains ints
+        
+        #check if focus size is smaller than parent image size
+        fw,fh = dim # focus dimensions
+        pw,ph = self.parent._ILO._scale_dim # parent dimensions
+        if not fw <= pw: raise Exception("Error: set_focus_img_size: fw <= pw")
+        if not fh <= ph: raise Exception("Error: set_focus_img_size: fh <= ph")
+        
+        self.focus_size = tuple(dim)
         pass
     
     def set_contour(self,contour):
@@ -744,8 +770,15 @@ class BeeFocusImage:
         
         # we also generate the dilated contours (in parent coords: with anchor offset), 
         #   since the parent might need them for drawing
-        _,c_outer, _ = cv2.findContours(self.mask_dil, cv2.RETR_EXTERNAL, 
-                                        cv2.CHAIN_APPROX_SIMPLE, offset=(ax,ay))
+        ret = cv2.findContours(self.mask_dil, cv2.RETR_EXTERNAL, 
+                               cv2.CHAIN_APPROX_SIMPLE, offset=(ax,ay))
+        # if len(ret)==3 : (image, contours, hierarchy)
+        # if len(ret)==2 : (contours, hierarchy) -> opencv 4!!!
+        if len(ret) == 3: 
+            c_outer = ret[1]
+        else:
+            c_outer = ret[0]
+            
         self.contour_dilate = c_outer[0] #there SHOULD only be ONE outer contour
         pass
     
@@ -942,10 +975,10 @@ class BeeExtractionHandler:
         if times <= time_size:
             for i in tqdm(range(times),desc="Iterating (from {})".format(self._index)):
                 # create parent class object
-                parent = ParentImageClass(ILC, 
+                self.parent = ParentImageClass(ILC, 
                                           self._ref_bg_img,self._bg_alpha_weight, 
                                           self._index, path_extr)
-                ds_dict = parent.get_dataseries_dict()
+                ds_dict = self.parent.get_dataseries_dict()
                 ds_parent = ds_dict["parent"]
                 ds_child_list = ds_dict["children"]
                 
@@ -1060,7 +1093,7 @@ if __name__== "__main__":
         # myB.set_BIC_properties()
         
         #%%
-        number = 14500
+        number = 100
         import datetime
         t1 = datetime.datetime.now()
         
@@ -1072,6 +1105,22 @@ if __name__== "__main__":
         print("time taken: {}".format(t2-t1))
         
         pass
+    #%%
+    # img_bg = np.uint8( myB.parent._ref_bg_img )
+    # parent_img = myB.parent
+    # parent_img_dict = parent_img.img
+    # cv2.imshow("11",img_bg)
+    # cv2.imshow("01",parent_img_dict["01 orig"])
+    # cv2.imshow("00",parent_img_dict["00 gray"])
+    # cv2.imshow("10",parent_img_dict["10 diff"])
+    # cv2.imshow("20",parent_img_dict["20 threshold"])
+    # cv2.imshow("25",parent_img_dict["25 reduced"])
+    # cv2.imshow("51",parent_img_dict["51 roi"])
     
-    
-    
+    # cv2.imwrite("temp/02 bg.png", img_bg)
+    # cv2.imwrite("temp/01 orig.png", parent_img_dict["01 orig"])
+    # cv2.imwrite("temp/00 gray.png", parent_img_dict["00 gray"])
+    # cv2.imwrite("temp/10 diff.png", parent_img_dict["10 diff"])
+    # cv2.imwrite("temp/20 threshold.png", parent_img_dict["20 threshold"])
+    # cv2.imwrite("temp/25 reduced.png", parent_img_dict["25 reduced"])
+    # cv2.imwrite("temp/51 roi.png", parent_img_dict["51 roi"])
